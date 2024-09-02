@@ -15,12 +15,15 @@
     "@mui/material": "^5.16.7",
     "@react-three/drei": "^9.111.3",
     "@react-three/fiber": "^8.17.5",
+    "@reduxjs/toolkit": "^2.2.7",
     "@types/three": "^0.167.2",
     "lodash": "^4.17.21",
     "path": "^0.12.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "three": "^0.167.1"
+    "react-redux": "^9.1.2",
+    "three": "^0.167.1",
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",

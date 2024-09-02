@@ -1,7 +1,14 @@
 import { Canvas } from "@react-three/fiber";
 import { styled } from "@mui/material";
 import useResizeObserver from "../hooks/useResizeObserver";
-import { GizmoHelper, GizmoViewport, OrbitControls } from "@react-three/drei";
+import { KeyboardControls } from "@react-three/drei";
+import { SceneDev } from "scenesGl/SceneDev";
+import { keyConfigs } from "config/keyConfig";
+import { useDispatch } from "react-redux";
+import { setTarget } from "redux/slices/editObjSlice";
+/*import miku from "assets/miku/miku_v2.pmd";
+import vmd from "assets/miku/vmds/wavefile_v2.vmd";
+import { MMDModelWithAnim } from "components/webGl/MMDModelWithAnim";*/
 
 export const EditorContainer = styled("div")({
   height: "100%",
@@ -15,40 +22,34 @@ export const EditorContainer = styled("div")({
 
 export const EditorCanvas = () => {
   const { ref, dimensions } = useResizeObserver();
+  const dispatch = useDispatch();
+
+  const canvasPointerMissed = () => {
+    dispatch(setTarget(undefined));
+  };
 
   return (
     <EditorContainer ref={ref}>
-      <Canvas
-        style={{
-          background: "#808080",
-          height: `${dimensions.height}px`,
-          width: `${dimensions.width}px`,
-          margin: 0,
-          padding: 0,
-          position: "absolute",
-          top: 0,
-          left: 0,
-        }}
-      >
-        <OrbitControls />
-        <GizmoHelper
-          alignment="top-right" // widget alignment within scene
-          margin={[80, 80]} // widget margins (X, Y)
+      <KeyboardControls map={keyConfigs}>
+        <Canvas
+          style={{
+            background: "#808080",
+            height: `${dimensions.height}px`,
+            width: `${dimensions.width}px`,
+            margin: 0,
+            padding: 0,
+            position: "absolute",
+            top: 0,
+            left: 0,
+          }}
+          camera={{ position: [0, 3, 5] }}
+          onPointerMissed={canvasPointerMissed}
+          shadows={true}
         >
-          <GizmoViewport
-            axisColors={["red", "green", "blue"]}
-            labelColor="black"
-            disabled={true} //クリックできないように設定
-          />
-        </GizmoHelper>
-        <gridHelper position={[0, -0.01, 0]} />
-        <axesHelper args={[5]} />
-
-        <mesh rotation={[0, 0, 0]} position={[0, 1, 0]}>
-          <boxGeometry />
-          <meshNormalMaterial />
-        </mesh>
-      </Canvas>
+          {/*シーンコンポーネント*/}
+          <SceneDev />
+        </Canvas>
+      </KeyboardControls>
     </EditorContainer>
   );
 };

@@ -12,4 +12,5 @@ export default defineConfig({
   esbuild: {
     jsxFactory: "jsx",
   },
+  assetsInclude: ["**/*.pmx", "**/*.pmd", "**/*.vmd"], // アセットとして扱うファイル拡張子を指定
 });
