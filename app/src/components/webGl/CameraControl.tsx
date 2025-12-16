@@ -1,6 +1,7 @@
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { /*OrbitControls, */ useKeyboardControls } from "@react-three/drei";
 import { Vector3 } from "three";
+import { useEffect, useRef } from "react";
 
 // カメラの移動速度
 const CAMERA_SPEED = 1;
@@ -10,8 +11,21 @@ const anglePerSecond = (30 * Math.PI) / 180;
 /*
  * カメラ制御を行うコンポーネント
  */
-export const CameraControl = () => {
+interface CameraControlProps {
+  initialPosition?: [number, number, number];
+}
+
+export const CameraControl = ({ initialPosition }: CameraControlProps) => {
   const [, get] = useKeyboardControls();
+  const { camera } = useThree();
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (initialPosition && !initialized.current) {
+      camera.position.set(...initialPosition);
+      initialized.current = true;
+    }
+  }, [initialPosition, camera]);
 
   useFrame((state, delta) => {
     const {
@@ -42,17 +56,14 @@ export const CameraControl = () => {
 
     // 前に進む
     if (forward) {
-      console.log("forward");
       state.camera.position.addScaledVector(direction, CAMERA_SPEED * delta);
     }
     // 後ろに進む
     if (backward) {
-      console.log("back");
       state.camera.position.addScaledVector(direction, -CAMERA_SPEED * delta);
     }
     // 右に進む
     if (right) {
-      console.log("right");
       state.camera.position.addScaledVector(rightVec, CAMERA_SPEED * delta);
     }
     // 左に進む

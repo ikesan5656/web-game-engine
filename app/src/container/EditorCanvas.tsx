@@ -20,7 +20,7 @@ export const EditorContainer = styled("div")({
   overflow: "hidden",
 });
 
-export const EditorCanvas = () => {
+const EditorCanvas = () => {
   const { ref, dimensions } = useResizeObserver();
   const dispatch = useDispatch();
 
@@ -53,3 +53,5 @@ export const EditorCanvas = () => {
     </EditorContainer>
   );
 };
+
+export default EditorCanvas;

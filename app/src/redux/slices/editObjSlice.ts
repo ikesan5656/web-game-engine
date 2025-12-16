@@ -1,6 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { Object3D } from "three";
-import { v4 as uuidv4 } from "uuid";
 
 // 1. Stateの型定義
 interface EditObjState {
@@ -27,13 +26,7 @@ export const edirObjSlice = createSlice({
       state.count -= action.payload;
     },
     setTarget: (state, action: PayloadAction<Object3D | undefined>) => {
-      if (action.payload == undefined) return;
-      if (state.target?.uuid == action.payload.uuid) return;
-
-      console.log(action.payload);
       const obj = action.payload;
-      obj.uuid = uuidv4();
-      console.log(obj.uuid);
       state.target = obj;
     },
   },

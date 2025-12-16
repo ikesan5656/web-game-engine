@@ -7,10 +7,11 @@ import { MMDAnimationHelper } from "three/addons/animation/MMDAnimationHelper.js
 interface MMDModelProps {
   modelPath: string;
   vmdPath: string;
+  scale?: number | [number, number, number];
 }
 
 export const MMDModelWithAnim = (props: MMDModelProps) => {
-  const { modelPath, vmdPath } = props;
+  const { modelPath, vmdPath, scale = 1 } = props;
   const groupRef = useRef<Group>(new Group());
 
   const helper = useRef(new MMDAnimationHelper());
@@ -51,5 +52,5 @@ export const MMDModelWithAnim = (props: MMDModelProps) => {
     }
   });
 
-  return <group ref={groupRef} />;
+  return <group ref={groupRef} scale={scale} />;
 };
