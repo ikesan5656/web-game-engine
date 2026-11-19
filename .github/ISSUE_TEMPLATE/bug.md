@@ -1,5 +1,5 @@
 ---
-name: "バグ"
+name: "バグ報告"
 about: "バグタスクを登録する"
 title: "[バグ] "
 labels: ["bug"]
