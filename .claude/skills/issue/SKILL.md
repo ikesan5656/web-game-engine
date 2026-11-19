@@ -1,9 +1,9 @@
 ---
 name: issue
-description: 指定した GitHub Issue に着手し、修正して PR を作成する。引数がなければ、既存 Issue に着手するか新規起票するかを聞く
+description: 指定した GitHub Issue に着手し、修正して PR を作成する。引数がなければ、既存 Issue に着手するか、.github/ISSUE_TEMPLATE のテンプレートに沿って新規起票するかを聞く
 argument-hint: "[issue番号 または URL]"
 disable-model-invocation: true
-allowed-tools: Bash(gh issue view:*), Bash(gh issue list:*), Bash(git status:*), Bash(git diff:*), Bash(git switch:*), Bash(git pull:*), Bash(pnpm --dir app exec eslint:*), Bash(pnpm --dir app exec tsc -b)
+allowed-tools: Bash(ls .github/ISSUE_TEMPLATE), Bash(gh issue view:*), Bash(gh issue list:*), Bash(git status:*), Bash(git diff:*), Bash(git switch:*), Bash(git pull:*), Bash(pnpm --dir app exec eslint:*), Bash(pnpm --dir app exec tsc -b)
 ---
 
 # Issue 対応
@@ -29,11 +29,21 @@ allowed-tools: Bash(gh issue view:*), Bash(gh issue list:*), Bash(git status:*),
 
 ## B. 新規起票
 
+Issue テンプレートは `.github/ISSUE_TEMPLATE/` にある。現在のテンプレート:
+
+!`ls .github/ISSUE_TEMPLATE`
+
 1. 何を起票したいかユーザーに聞く（不具合か機能追加か、内容、再現手順や期待する動き）
-2. 必要に応じて関連コードを調べ、原因の候補や影響しそうなファイルを把握する
-3. タイトルと本文の案を日本語で作り、ユーザーに見せて了承を取る。本文の構成:
-   - **概要**: 何が問題か／何を追加したいか
-   - **再現手順・期待する動き**（不具合の場合）
-   - **関連ファイル**: 調べて分かった範囲で
-4. 了承されたら `gh issue create --title "<タイトル>" --body "<本文>"` で起票し、Issue の URL を報告する
-5. そのまま着手するかユーザーに聞き、着手するなら作成した番号で「A. 既存 Issue の修正」に進む
+2. 内容に合うテンプレートを選んで Read する。各テンプレートの frontmatter の `name`／`about` で判断し、どれに当たるか迷うときはユーザーに聞く
+3. 必要に応じて関連コードを調べ、原因の候補や影響しそうなファイルを把握する
+4. テンプレートに従ってタイトルと本文の案を日本語で作る
+   - **タイトル**: frontmatter の `title`（例: `[バグ] `、`[Feature] `）を先頭に付ける
+   - **本文**: テンプレートの見出し（`## 〜`）を同じ順番ですべて残し、各見出しの下を埋める
+     - `<!-- -->` のコメントは書き方の指示として読み、本文からは消す
+     - 書くことがない見出しは消さず、テンプレートにある既定の文（例: 「特に無し」）を残すか「特に無し」と書く
+     - 「関連Issue」のチェックリストは、関連する Issue があれば `- [ ] #<番号>` の形で書き、なければ空の項目を消して「特に無し」と書く
+     - 調べて分かった関連ファイルは、「補足」（機能の場合は「設計方針」でもよい）に `[ファイル名](パス)` の形で書く
+   - **ラベル**: frontmatter の `labels` をそのまま使う
+5. タイトル・ラベル・本文の案をユーザーに見せて了承を取る
+6. 了承されたら、本文を `mktemp` で作った一時ファイルに書き出し、`gh issue create --title "<タイトル>" --body-file <一時ファイル> --label "<ラベル>"` で起票して Issue の URL を報告する（ラベルが複数あるときは `--label` を繰り返す）
+7. そのまま着手するかユーザーに聞き、着手するなら作成した番号で「A. 既存 Issue の修正」に進む
