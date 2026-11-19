@@ -5,6 +5,7 @@
 import { TransformControls } from "@react-three/drei";
 import { CameraControl } from "components/webGl/CameraControl";
 import { DirectionalLightCustom } from "components/webGl/DirectionalLightCustom";
+import GltfModel from "components/webGl/GltfModel";
 import { MMDModel } from "components/webGl/MMDModel";
 import { MMDModelWithAnim } from "components/webGl/MMDModelWithAnim";
 //import { ThreeBox } from "components/webGl/ThreeBox";
@@ -44,7 +45,8 @@ export const SceneDev = () => {
         <circleGeometry args={[10]} />
         <meshStandardMaterial />
       </mesh>
-      <MMDModel modelPath={mikuModelUrl} motionPath={mikuVmdUrl} scale={0.3} />
+      <GltfModel />
+      {/*<MMDModel modelPath={mikuModelUrl} motionPath={mikuVmdUrl} scale={0.3} />*/}
       {/*<MMDModelWithAnim
         modelPath={mikuModelUrl}
         vmdPath={mikuVmdUrl}
