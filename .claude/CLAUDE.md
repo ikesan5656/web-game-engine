@@ -30,13 +30,13 @@ TypeScript は 7 系を使う。typescript-eslint が TS7 に未対応のため�
 
 ## ブランチ運用
 
-開発の起点は `develop`。作業ブランチは `develop` から切り、PR も `develop` 向けに出す（`gh pr create --base develop`）。`main` は first commit のまま使っていない。
+開発の起点は `develop`。作業ブランチは `develop` から切り、PR も `develop` 向けに出す（`gh pr create --base develop`）。`main` は first commit のまま使っていない。GitHub 上のデフォルトブランチも `develop` で、PR の `Closes #<番号>` による Issue のクローズと、Issue のイベントで動く GitHub Actions は、`develop` を基準に動く。
 
 `develop` に push すると、GitHub Actions（`.github/workflows/deploy.yml`）が GitHub Pages（`https://ikesan5656.github.io/web-game-engine/`）に公開する（Actions タブから手動でも実行できる）。
 
 ## サブエージェントの使い方
 
-Issue 対応は `/issue` スキルの流れ（① 要件定義 `doc-reviewer` → ② 設計 `planner` → ③ 実装 `implementer`・`doc-writer` → ④ レビュー `code-reviewer`・`quality-checker` → ⑤ 動作確認 → PR 作成）に従う。新規 Issue は、ユーザーが要件を了承してから起票する。各工程の終わりにユーザーの了承を取り、進捗は Issue の工程ごとのコメントと本文最上部のステータス欄に記録する。
+Issue 対応は `/issue` スキルの流れ（① 要件定義 `doc-reviewer` → ② 設計 `planner` → ③ 実装 `implementer`・`doc-writer` → ④ レビュー `code-reviewer`・`quality-checker` → ⑤ 動作確認 → PR 作成）に従う。新規 Issue は、ユーザーが要件を了承してから起票する。各工程の終わりにユーザーの了承を取り、進捗は Issue の工程ごとのコメントと本文最上部のステータス欄に記録する。サブ Issue が完了として閉じられたり開き直されたりすると、GitHub Actions（`.github/workflows/update-parent-issue.yml`）が、親 Issue の本文のチェックリストで行末に子の番号だけが並ぶ項目を、すべて完了なら `[x]`、そうでなければ `[ ]` に合わせる。番号の書き方と注意点は `/issue` スキルの「B. 新規起票」を参照。
 
 ドキュメント（`*.md`、`docs/`、`.claude/` 配下など）の作成・更新は、メインや `implementer` では行わず `doc-writer` に任せる。コードの変更もあるときは、`implementer` と `doc-writer` を**並行して**起動する。
 

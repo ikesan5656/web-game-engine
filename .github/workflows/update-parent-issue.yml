@@ -1,0 +1,219 @@
+# サブ Issue（子 Issue）が完了して閉じたら、親 Issue の本文のチェックリストで、
+# その子を指す項目（行末に `#<子の番号>` を並べた行）に印を付ける。
+# 子が再び開かれたら印を外す。
+# 実行のたびに、行末の番号がすべて親のサブ Issue である行を「並んだ子がすべて完了なら印あり」に
+# 合わせ直す。concurrency のグループはリポジトリ全体で 1 つなので、待機中の実行が別の親の子の
+# イベントで取り消されることがある。その分の付け漏れ・外し漏れは、同じ親の子が次に完了で閉じたり
+# 開き直されたりしたときに直る。
+name: Update parent issue checklist
+
+on:
+  issues:
+    types: [closed, reopened]
+
+permissions:
+  issues: write
+
+jobs:
+  update:
+    # 完了（completed）以外の理由（not planned / duplicate）で閉じたときは動かない
+    if: github.event.action == 'reopened' || github.event.issue.state_reason == 'completed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # 同じ親の本文を同時に書き換えないよう、リポジトリ単位で直列に実行する
+    # （実行前は親の番号が分からないため、グループを親ごとに分けられない）
+    concurrency:
+      group: update-parent-issue
+      cancel-in-progress: false
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            // ===== 判定ロジック（API を使わない純粋な関数） =====
+
+            const STATUS_START = "<!-- issue-skill:status:start -->";
+            const STATUS_END = "<!-- issue-skill:status:end -->";
+            // チェックリストの項目のうち、行末に ` #番号` が 1 つ以上並んだ行。
+            // 1: 印の直前まで / 2: 印 / 3: 行末の番号の並び
+            // 番号の並びは「空白 + #数字」の繰り返しで行末まで続くものだけを対象にするため、
+            // 本文の途中の `（#10 で…）` には当たらず、`#1` と `#10` も取り違えない
+            const ITEM_RE = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])\].*?((?:\s+#\d+)+)\s*$/;
+            // バッククォートの開きフェンスは、情報文字列にバッククォートを含まないもの（```foo``` のような
+            // 1 行のインラインコードを開きフェンスと誤認しない）
+            const FENCE_OPEN_RE = /^\s{0,3}(`{3,}(?=[^`]*$)|~{3,})/;
+            const FENCE_CLOSE_RE = /^\s{0,3}(`{3,}|~{3,})\s*$/;
+
+            /** 本文を行に分ける。改行コード（\r\n / \n）は行ごとに保持する */
+            function splitLines(body) {
+              return body.split("\n").map((raw) =>
+                raw.endsWith("\r")
+                  ? { text: raw.slice(0, -1), eol: "\r" }
+                  : { text: raw, eol: "" },
+              );
+            }
+
+            function joinLines(lines) {
+              return lines.map((line) => line.text + line.eol).join("\n");
+            }
+
+            /**
+             * 本文から、行末に `#番号` が並ぶチェックリストの項目をすべて探す。
+             * ステータス欄（マーカーで囲まれた範囲）とコードブロックの中は対象外。
+             */
+            function findItems(body) {
+              const items = [];
+              let inStatus = false;
+              let fence = null;
+              splitLines(body).forEach((line, index) => {
+                const text = line.text;
+                if (inStatus) {
+                  if (text.includes(STATUS_END)) inStatus = false;
+                  return;
+                }
+                if (fence !== null) {
+                  // 閉じフェンスは、開きと同じ文字種・同じ長さ以上で、後ろに何もないもの
+                  const close = FENCE_CLOSE_RE.exec(text);
+                  if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
+                  return;
+                }
+                if (text.includes(STATUS_START)) {
+                  // 開始と終了が同じ行にある場合は、その行だけを除外する
+                  inStatus = !text.includes(STATUS_END);
+                  return;
+                }
+                const open = FENCE_OPEN_RE.exec(text);
+                if (open) {
+                  fence = open[1];
+                  return;
+                }
+                const m = ITEM_RE.exec(text);
+                if (!m) return;
+                items.push({
+                  index,
+                  markPos: m[1].length,
+                  checked: m[2] !== " ",
+                  refs: m[3].trim().split(/\s+/).map((ref) => Number(ref.slice(1))),
+                  text,
+                });
+              });
+              return items;
+            }
+
+            /**
+             * 本文を親のサブ Issue の状態に合わせ直す。
+             * subIssues: Map<子の番号, 完了として閉じているか>
+             * 行末の番号がすべてサブ Issue である行だけを管理対象にし、
+             * 「印あり = 並んだ子がすべて完了」になるよう付け外しする。
+             */
+            function reconcile(body, subIssues) {
+              const items = findItems(body);
+              const managed = items.filter((item) => item.refs.every((n) => subIssues.has(n)));
+              const unmanaged = items.filter((item) => !managed.includes(item));
+              const changes = [];
+              for (const item of managed) {
+                const shouldCheck = item.refs.every((n) => subIssues.get(n) === true);
+                if (shouldCheck !== item.checked) changes.push({ item, mark: shouldCheck ? "x" : " " });
+              }
+              const lines = splitLines(body);
+              for (const { item, mark } of changes) {
+                const line = lines[item.index];
+                line.text = line.text.slice(0, item.markPos) + mark + line.text.slice(item.markPos + 1);
+                item.newText = line.text;
+              }
+              return { managed, unmanaged, changes, newBody: joinLines(lines) };
+            }
+
+            // ===== ここから GitHub API を使う処理 =====
+
+            const action = context.payload.action;
+            const child = context.payload.issue;
+            const { owner, repo } = context.repo;
+            const repoName = `${owner}/${repo}`;
+            core.info(`イベント: ${action} / 子 Issue: #${child.number}（state_reason: ${child.state_reason}）`);
+
+            // ジョブの `if` と同じ条件。二重の防御として残す
+            if (action === "closed" && child.state_reason !== "completed") {
+              core.info("完了（completed）以外の理由で閉じられたため、何もしない");
+              return;
+            }
+
+            // 子の状態を先に取る（親の本文の取得から更新までの間隔を短くするため）
+            const result = await github.graphql(
+              `query ($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $number) {
+                    parent {
+                      number
+                      repository { nameWithOwner }
+                      subIssues(first: 100) {
+                        totalCount
+                        nodes { number state stateReason repository { nameWithOwner } }
+                      }
+                    }
+                  }
+                }
+              }`,
+              { owner, repo, number: child.number },
+            );
+            const parent = result.repository?.issue?.parent;
+            if (!parent) {
+              core.info("親 Issue がないため、何もしない");
+              return;
+            }
+            if (parent.repository.nameWithOwner !== repoName) {
+              core.info(`親 Issue が別のリポジトリ（${parent.repository.nameWithOwner}#${parent.number}）にあるため、何もしない`);
+              return;
+            }
+            core.info(`親 Issue: #${parent.number}`);
+            if (parent.subIssues.totalCount > parent.subIssues.nodes.length) {
+              core.warning(
+                `サブ Issue が ${parent.subIssues.totalCount} 件あり、先頭の ${parent.subIssues.nodes.length} 件しか見ていない。残りの子だけを並べた行は管理対象にならない`,
+              );
+            }
+
+            // 同じリポジトリの子だけで「番号 → 完了か」を作る
+            const subIssues = new Map(
+              parent.subIssues.nodes
+                .filter((node) => node.repository.nameWithOwner === repoName)
+                .map((node) => [node.number, node.state === "CLOSED" && node.stateReason === "COMPLETED"]),
+            );
+            core.info(
+              `サブ Issue: ${[...subIssues].map(([n, done]) => `#${n}（${done ? "完了" : "未完了"}）`).join("、") || "なし"}`,
+            );
+
+            const getBody = async () =>
+              (await github.rest.issues.get({ owner, repo, issue_number: parent.number })).data.body ?? "";
+
+            const body = await getBody();
+            let plan = reconcile(body, subIssues);
+            if (plan.changes.length > 0) {
+              // 更新の直前に本文を取り直し、変わっていれば新しい本文で計算し直す（1 回だけ）
+              const latest = await getBody();
+              if (latest !== body) {
+                core.info("取得後に親の本文が変わっていたため、新しい本文で計算し直す");
+                plan = reconcile(latest, subIssues);
+              }
+            }
+
+            for (const item of plan.unmanaged.filter((item) => item.refs.includes(child.number))) {
+              core.info(`対象外（行末にサブ Issue でない番号が並んでいる）: ${item.text}`);
+            }
+            if (!plan.managed.some((item) => item.refs.includes(child.number))) {
+              core.info(`親 #${parent.number} の本文に、行末に #${child.number} を含む管理対象の項目がない`);
+            }
+            for (const item of plan.managed) {
+              if (plan.changes.some((change) => change.item === item)) continue;
+              if (item.refs.includes(child.number)) {
+                core.info(`変更なし（${item.checked ? "並んだ子がすべて完了していて、すでに印がある" : "並んだ子に未完了のものがあり、印がない"}）: ${item.text}`);
+              }
+            }
+            if (plan.changes.length === 0) {
+              core.info("本文に変更がないため、更新しない");
+              return;
+            }
+
+            await github.rest.issues.update({ owner, repo, issue_number: parent.number, body: plan.newBody });
+            for (const { item, mark } of plan.changes) {
+              const note = item.refs.includes(child.number) ? "" : `（#${child.number} を含まない行。前の実行の取りこぼしを直した）`;
+              core.info(`親 #${parent.number} の行の印を${mark === "x" ? "付けた" : "外した"}${note}: ${item.newText}`);
+            }
