@@ -5,6 +5,7 @@
 import { TransformControls } from "@react-three/drei";
 import { CameraControl } from "components/webGl/CameraControl";
 import { DirectionalLightCustom } from "components/webGl/DirectionalLightCustom";
+import { EditorGrid } from "components/webGl/EditorGrid";
 import GltfModel from "components/webGl/GltfModel";
 import { MMDModel } from "components/webGl/MMDModel";
 import { MMDModelWithAnim } from "components/webGl/MMDModelWithAnim";
@@ -18,6 +19,7 @@ import { useSelector } from "redux/store";
 
 export const SceneDev = () => {
   const target = useSelector((state) => state.editObj.target);
+  const gridVisible = useSelector((state) => state.editorView.gridVisible);
   //const positionTest = useRef(defaultPos);
 
   // Vite: resolve asset URL so dev server returns the actual binary file,
@@ -35,8 +37,7 @@ export const SceneDev = () => {
       <CameraControl initialPosition={[0, 7, 8]} />
       <DirectionalLightCustom />
       <ThreeGizmo />
-      <gridHelper position={[0, -0.01, 0]} />
-      <axesHelper args={[5]} />
+      {gridVisible && <EditorGrid />}
 
       {target && <TransformControls object={target} mode={"translate"} />}
       {/*<ThreeBox position={positionTest.current} />*/}

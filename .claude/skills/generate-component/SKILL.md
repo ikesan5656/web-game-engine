@@ -10,10 +10,10 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(pnpm --dir app exec eslint:*)
 
 ## 1. 種類を判断する
 
-| 種類 | 判断の目安 | 置き場所 |
-| --- | --- | --- |
-| 3D（R3F） | `<Canvas>` の中に置くもの。メッシュ、ライト、モデル、ヘルパー、`useFrame` で動かすもの、3D 空間のクリックに反応するもの | `app/src/components/webGl/<Name>.tsx` |
-| UI（MUI） | Canvas の外の画面部品。「パネル」「画面に表示」「ボタン」「メニュー」と言われたものはこちら | `app/src/components/<Name>.tsx`（スタイルは `app/src/styles/components/Styled<Name>.tsx`） |
+| 種類      | 判断の目安                                                                                                              | 置き場所                                                                                   |
+| --------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 3D（R3F） | `<Canvas>` の中に置くもの。メッシュ、ライト、モデル、ヘルパー、`useFrame` で動かすもの、3D 空間のクリックに反応するもの | `app/src/components/webGl/<Name>.tsx`                                                      |
+| UI（MUI） | Canvas の外の画面部品。「パネル」「画面に表示」「ボタン」「メニュー」と言われたものはこちら                             | `app/src/components/<Name>.tsx`（スタイルは `app/src/styles/components/Styled<Name>.tsx`） |
 
 **止まって確認するのは、種類そのものが判断できないときだけ**にする（例：「選択中のオブジェクトの名前を出して」だけで、3D 空間内のラベルか画面のパネルか分からない）。種類を間違えると全部作り直しになるが、それ以外の細かい解釈（ローカル座標かワールド座標か、既存の地面をどう扱うか、など）は妥当な方を選んで進め、選んだ内容を最後の報告に書く。そのほうがユーザーの手間が少ない。
 
@@ -28,7 +28,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(pnpm --dir app exec eslint:*)
 - **import は `src/` 起点のパス**（`tsconfig.json` の `paths` で `./src/*` に解決）。例: `import { setTarget } from "redux/slices/editObjSlice";`。`../` の相対パスは使わない。
 - **CSS ファイルは作らない**。見た目は MUI で付ける。
 - **コメントは日本語**。コンポーネントの役割を JSDoc（`/** ... */`）で1〜3行書く。
-- `useSelector` は `redux/store` から export されている型付きのものを使う。
+- `useSelector`・`useDispatch` は `react-redux` から直接ではなく、`redux/store` から export されている型付きのものを使う。
 
 **既存コードはお手本にしない。** 既存ファイルには相対 import、default export、JSDoc なし、`useFrame` 内での毎回の `new Vector3()` など、上のルールより古い書き方が残っている。書き方はこのスキルの例とルールに合わせる。既存コードは「どの部品・state があるか」を知るために読む。
 
@@ -38,9 +38,9 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(pnpm --dir app exec eslint:*)
 import { ThreeEvent, useFrame } from "@react-three/fiber";
 import { useCursor } from "@react-three/drei";
 import { useRef, useState } from "react";
-import { useDispatch } from "react-redux";
 import { Mesh, Vector3 } from "three";
 import { setTarget } from "redux/slices/editObjSlice";
+import { useDispatch } from "redux/store";
 
 interface SampleSphereProps {
   position?: Vector3 | [number, number, number];
@@ -50,7 +50,10 @@ interface SampleSphereProps {
 /**
  * クリックで選択できる、上下にゆれる球体
  */
-export const SampleSphere = ({ position = [0, 1, 0], radius = 0.5 }: SampleSphereProps) => {
+export const SampleSphere = ({
+  position = [0, 1, 0],
+  radius = 0.5,
+}: SampleSphereProps) => {
   const dispatch = useDispatch();
   const meshRef = useRef<Mesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -84,7 +87,7 @@ export const SampleSphere = ({ position = [0, 1, 0], radius = 0.5 }: SampleSpher
 
 - **選択（クリックで編集対象にする）**: `setTarget(e.object)` を dispatch すると、シーン側の `<TransformControls>` がその物体に付く。`e.stopPropagation()` で後ろの物体まで反応しないようにする。何もない所のクリックで選択解除する処理は `EditorCanvas` にすでにある。
 - **選択以外のクリック**（クリック位置の取得など）: `setTarget` は dispatch しない。位置は `e.point`（ワールド座標）で取れる。
-- **既存の物体のクリックに反応したい**とき（例：地面をクリックしたら〜）: 既存ファイルは変更しないので、対象を `children` として受け取り `<group onClick={...}>{children}</group>` で包む形にする。部品が自分で描画するマーカーなどは `raycast={() => null}` にして、クリックを横取りしないようにする。
+- **既存の物体のクリックに反応したい**とき（例：地面をクリックしたら〜）: 既存ファイルは変更しないので、対象を `children` として受け取り `<group onClick={...}>{children}</group>` で包む形にする。部品が自分で描画するマーカーなどは、`components/webGl/noRaycast` の `noRaycast` を `raycast={noRaycast}` で渡して（`import { noRaycast } from "components/webGl/noRaycast";`）、クリックを横取りしないようにする。
 - **毎フレームの処理**は `useFrame` に書き、移動・回転量には `delta` を掛ける（フレームレートに依存させないため）。`useFrame` 内で `new Vector3()` などを毎回作らず、`useRef` や外側の定数で使い回す。
 - **キー入力**は `useKeyboardControls`。キー名は `config/keyConfig.ts` の `Controls`。`<KeyboardControls>` の内側でしか動かないことを JSDoc に書く。
 - **影**: 落とす物体は `castShadow`、受ける物体は `receiveShadow`。
