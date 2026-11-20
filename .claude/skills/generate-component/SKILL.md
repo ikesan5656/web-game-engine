@@ -91,7 +91,7 @@ export const SampleSphere = ({
 - **毎フレームの処理**は `useFrame` に書き、移動・回転量には `delta` を掛ける（フレームレートに依存させないため）。`useFrame` 内で `new Vector3()` などを毎回作らず、`useRef` や外側の定数で使い回す。
 - **キー入力**は `useKeyboardControls`。キー名は `config/keyConfig.ts` の `Controls`。`<KeyboardControls>` の内側でしか動かないことを JSDoc に書く。
 - **影**: 落とす物体は `castShadow`、受ける物体は `receiveShadow`。
-- **モデル読み込み**: glTF は `app/public/` のファイルを `/xxx.glb` で読む。MMD（.pmd/.pmx/.vmd）は `new URL("../assets/...", import.meta.url).href` で URL を作る（相対パス文字列だと開発サーバーが HTML の 404 を返し、`MMDLoader` が壊れたデータとして読むため）。
+- **モデル読み込み**: glTF は `app/public/` のファイルを `` `${import.meta.env.BASE_URL}xxx.glb` `` で読む（GitHub Pages ではサブパスで公開するため、`/xxx.glb` だと 404 になる）。MMD（.pmd/.pmx/.vmd）は `new URL("../assets/...", import.meta.url).href` で URL を作る（相対パス文字列だと開発サーバーが HTML の 404 を返し、`MMDLoader` が壊れたデータとして読むため）。
 - 何も描画しない制御用の部品は `return null` でよい。
 
 ## 4. UI（MUI）コンポーネント

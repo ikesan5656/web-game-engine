@@ -2,7 +2,6 @@
 name: issue
 description: GitHub Issue を起点に、要件定義 → 設計 → 実装 → レビュー → 動作確認の順でサブエージェントを使って対応し、PR を作成する。引数がなければ、既存 Issue に着手するか、.github/ISSUE_TEMPLATE のテンプレートに沿って新規起票するかを聞く
 argument-hint: "[issue番号 または URL]"
-disable-model-invocation: true
 allowed-tools: Bash(ls .github/ISSUE_TEMPLATE), Bash(gh issue view:*), Bash(gh issue list:*), Bash(gh issue create:*), Bash(gh issue comment:*), Bash(gh issue edit:*), Bash(gh api repos/{owner}/{repo}/issues/:*), Bash(gh pr create:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git status:*), Bash(git diff:*), Bash(git switch:*), Bash(git pull:*), Bash(pnpm --dir app exec eslint:*), Bash(pnpm --dir app exec prettier --check:*)
 ---
 
@@ -181,7 +180,7 @@ Issue テンプレートは `.github/ISSUE_TEMPLATE/` にある。現在のテ�
    - エラーがあれば修正させ、④の手順 3（修正後の再確認）から再開する。コードのエラーは `implementer` に修正させる。`.md` の整形エラーは、メインがエラー内容（該当ファイルと箇所）を `doc-writer` に渡して直させる
 2. ユーザーに次をまとめて報告する
    - レビュー結果とチェック結果の要約
-   - **ユーザーが画面で確認すべき箇所**: `pnpm --dir app run dev`（http://localhost:3000）で開いたあと、どの画面・パネルで、どう操作し、何が見えれば正しいか。UI に影響しない変更なら「UI の確認は不要」と理由付きで書く
+   - **ユーザーが画面で確認すべき箇所**: `pnpm --dir app run dev`（`http://localhost:3000/web-game-engine/`）で開いたあと、どの画面・パネルで、どう操作し、何が見えれば正しいか。UI に影響しない変更なら「UI の確認は不要」と理由付きで書く
 3. ユーザーが UI を確認して問題がないと答えるまで待つ。問題があれば内容を聞いて③に戻る（設計から見直す必要があれば②に戻る）
 4. ⑤の工程コメントを追加・更新し、ステータス欄を更新してから PR 作成に進む
 

@@ -16,12 +16,12 @@ React + TypeScript + Vite で構築したブラウザ向け 3D エディタ／�
 
 ```shell
 pnpm i              # 依存パッケージのインストール
-pnpm run dev        # Vite 開発サーバー起動（http://localhost:3000）
+pnpm run dev        # Vite 開発サーバー起動（http://localhost:3000/web-game-engine/）
 pnpm run build      # tsc -b && vite build（型チェック＋バンドル）
 pnpm run lint       # eslint .
 pnpm run format     # prettier --write .
 pnpm run format:check # prettier --check .
-pnpm run preview    # 本番ビルドのプレビュー
+pnpm run preview    # 本番ビルドのプレビュー（http://localhost:4173/web-game-engine/）
 ```
 
 テストフレームワークは未導入。
@@ -31,6 +31,8 @@ TypeScript は 7 系を使う。typescript-eslint が TS7 に未対応のため�
 ## ブランチ運用
 
 開発の起点は `develop`。作業ブランチは `develop` から切り、PR も `develop` 向けに出す（`gh pr create --base develop`）。`main` は first commit のまま使っていない。
+
+`develop` に push すると、GitHub Actions（`.github/workflows/deploy.yml`）が GitHub Pages（`https://ikesan5656.github.io/web-game-engine/`）に公開する（Actions タブから手動でも実行できる）。
 
 ## サブエージェントの使い方
 
