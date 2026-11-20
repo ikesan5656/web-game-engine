@@ -10,7 +10,7 @@ import { setTarget } from "redux/slices/editObjSlice";
 import vmd from "assets/miku/vmds/wavefile_v2.vmd";
 import { MMDModelWithAnim } from "components/webGl/MMDModelWithAnim";*/
 
-export const EditorContainer = styled("div")({
+const EditorContainer = styled("div")({
   height: "100%",
   width: "100%",
   flex: 1,

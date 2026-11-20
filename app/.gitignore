@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# TypeScript のビルド情報（tsc -b が生成）
+*.tsbuildinfo
