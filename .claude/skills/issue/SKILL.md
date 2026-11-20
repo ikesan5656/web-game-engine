@@ -1,36 +1,44 @@
 ---
 name: issue
-description: 指定した GitHub Issue に着手し、修正して PR を作成する。引数がなければ、既存 Issue に着手するか、.github/ISSUE_TEMPLATE のテンプレートに沿って新規起票するかを聞く
+description: GitHub Issue を起点に、要件定義 → 設計 → 実装 → レビュー → 動作確認の順でサブエージェントを使って対応し、PR を作成する。引数がなければ、既存 Issue に着手するか、.github/ISSUE_TEMPLATE のテンプレートに沿って新規起票するかを聞く
 argument-hint: "[issue番号 または URL]"
 disable-model-invocation: true
-allowed-tools: Bash(ls .github/ISSUE_TEMPLATE), Bash(gh issue view:*), Bash(gh issue list:*), Bash(git status:*), Bash(git diff:*), Bash(git switch:*), Bash(git pull:*), Bash(pnpm --dir app exec eslint:*), Bash(pnpm --dir app exec tsc -b)
+allowed-tools: Bash(ls .github/ISSUE_TEMPLATE), Bash(gh issue view:*), Bash(gh issue list:*), Bash(gh issue create:*), Bash(gh issue comment:*), Bash(gh pr create:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(mktemp:*), Bash(git status:*), Bash(git diff:*), Bash(git switch:*), Bash(git pull:*), Bash(pnpm --dir app exec eslint:*), Bash(pnpm --dir app exec prettier --check:*)
 ---
 
 # Issue 対応
 
+全体の流れは次のとおり。各フェーズは対応するサブエージェントに任せ、メインはその結果をまとめてユーザーとやり取りする。
+
+| フェーズ | 担当 |
+| --- | --- |
+| ① 要件定義 | `doc-reviewer` |
+| ② 設計 | `planner` |
+| ③ 実装 | `implementer`（コード）・`doc-writer`（ドキュメント）を並行 |
+| ④ レビュー | `code-reviewer`・`quality-checker`（並行） |
+| ⑤ 動作確認 | メイン（lint・フォーマット確認のみ）＋ユーザーへの UI 確認依頼 |
+
+**ドキュメント（`*.md`、`docs/`、`.claude/` 配下など）の作成・更新はメインや `implementer` では行わず、必ず `doc-writer` に任せる。ドキュメントを変更したときは、どのフェーズでも `doc-reviewer` を他のエージェントと並行して必ず起動する。**
+
 ## 0. 引数の確認
 
-- $ARGUMENTS に Issue 番号または URL があれば、「A. 既存 Issue の修正」に進む。
+- $ARGUMENTS に Issue 番号または URL があれば、「① 要件定義」の「A. 既存 Issue」に進む。
 - $ARGUMENTS が空なら、作業を始めずにユーザーに次のどちらかを聞く。判断の助けとして `gh issue list --state open --limit 10` の結果も見せる。
-  - **既存の Issue に着手する** → 番号を聞いて「A. 既存 Issue の修正」へ
+  - **既存の Issue に着手する** → 番号を聞いて「A. 既存 Issue」へ
   - **新しく起票する** → 「B. 新規起票」へ
 
-## A. 既存 Issue の修正
+## ① 要件定義
 
-1. `gh issue view <番号> --comments` で本文とコメントを読む。内容が曖昧で修正方針を決められないときは、作業前にユーザーに確認する
-2. `develop` に切り替えて `git pull` で最新にし、そこから作業ブランチを作る（開発の起点は `develop`。`main` は使わない）
-   - バグの Issue（`bug` ラベルが付いている、またはタイトルが `[バグ]` で始まる）→ `bug/<修正内容>-<番号>`
-   - それ以外 → `feature/<修正内容>-<番号>`
-   - `<修正内容>` は内容を表す英語の kebab-case で、20文字まで（例: `bug/fix-mmd-load-error-12`）
-3. 関連ファイルを調べ、修正を実装する（`.claude/rules/` のルールに従う）
-4. 変更したファイルだけを確認する
-   - `pnpm --dir app exec eslint <変更したファイル>`
-   - `pnpm --dir app exec tsc -b`（既存エラーのため終了コードは常に 1。変更したファイルの行が出ていないかで判断する）
-5. 変更内容の要約と差分をユーザーに見せ、コミット・push・PR 作成の了承を取る
-6. 了承されたら、日本語のメッセージでコミットし、push して `gh pr create --base develop` で `develop` 向けの PR を作る。PR 本文には `Closes #<番号>` と変更の要約を書く
-7. 作成した PR の URL を報告する
+### A. 既存 Issue
 
-## B. 新規起票
+1. `gh issue view <番号> --comments` で本文とコメントを読む
+2. `doc-reviewer` に Issue の本文を渡し、要件の抜け漏れ・曖昧さ・現在のコードとの食い違いをレビューさせる
+3. 要件の要約（やること／やらないこと／完了条件）と `doc-reviewer` の指摘をユーザーに見せ、要件を確定させる。確定するまで次に進まない
+4. 確定した要件が Issue 本文と違う場合は、Issue へのコメント追記が必要かユーザーに聞く
+
+### B. 新規起票
+
+**ユーザーが要件を了承するまで Issue は起票しない。**
 
 Issue テンプレートは `.github/ISSUE_TEMPLATE/` にある。現在のテンプレート:
 
@@ -47,6 +55,49 @@ Issue テンプレートは `.github/ISSUE_TEMPLATE/` にある。現在のテ�
      - 「関連Issue」のチェックリストは、関連する Issue があれば `- [ ] #<番号>` の形で書き、なければ空の項目を消して「特に無し」と書く
      - 調べて分かった関連ファイルは、「補足」（機能の場合は「設計方針」でもよい）に `[ファイル名](パス)` の形で書く
    - **ラベル**: frontmatter の `labels` をそのまま使う
-5. タイトル・ラベル・本文の案をユーザーに見せて了承を取る
-6. 了承されたら、本文を `mktemp` で作った一時ファイルに書き出し、`gh issue create --title "<タイトル>" --body-file <一時ファイル> --label "<ラベル>"` で起票して Issue の URL を報告する（ラベルが複数あるときは `--label` を繰り返す）
-7. そのまま着手するかユーザーに聞き、着手するなら作成した番号で「A. 既存 Issue の修正」に進む
+5. `doc-reviewer` に起票案とテンプレートのパスを渡し、要件の抜け漏れ・曖昧さ・コードとの食い違い・テンプレートとの不一致をレビューさせ、指摘を案に反映する
+6. タイトル・ラベル・本文の案と、反映した指摘の要約をユーザーに見せ、要件の了承を取る。修正を求められたら 4〜6 を繰り返す
+7. 了承されてから初めて起票する。本文を `mktemp` で作った一時ファイルに書き出し、`gh issue create --title "<タイトル>" --body-file <一時ファイル> --label "<ラベル>"` で起票して Issue の URL を報告する（ラベルが複数あるときは `--label` を繰り返す）
+8. そのまま着手するかユーザーに聞く。着手するなら、確定した要件のまま「② 設計」に進む
+
+## ② 設計
+
+1. `planner` に確定した要件と Issue 番号を渡し、影響範囲・変更するファイル・実装手順・懸念点を整理させる。変更するファイルは、コードとドキュメント（作成・更新が必要なもの）を分けて挙げさせる。設計に関わる変更なら `docs/architecture.md` と CLAUDE.md の設計方針を踏まえるよう伝える
+2. 設計の要約をユーザーに見せ、了承を取ってから実装に進む
+
+## ③ 実装
+
+手順 1・2 は、この Issue の作業ブランチがまだないときだけ行う。②・⑤から戻ってきたときは手順 3 から始める。
+
+1. `git status` で未コミットの変更がないか確認する。あればどう扱うかユーザーに聞く
+2. `develop` に切り替えて `git pull` で最新にし、そこから作業ブランチを作って切り替える（`git switch -c <ブランチ名>`。開発の起点は `develop`。`main` は使わない）
+   - バグの Issue（`bug` ラベルが付いている、またはタイトルが `[バグ]` で始まる）→ `bug/<修正内容>-<番号>`
+   - それ以外 → `feature/<修正内容>-<番号>`
+   - `<修正内容>` は内容を表す英語の kebab-case で、20文字まで（例: `bug/fix-mmd-load-error-12`）
+3. 次を**並行して**起動する。どちらかの変更がなければ、そのエージェントは起動しない
+   - `implementer`: 確定した要件と `planner` の設計を渡してコードを実装させる（`.claude/rules/` のルールに従う。lint・型チェック・フォーマットまで確認させる。ドキュメントは編集させない）
+   - `doc-writer`: 確定した要件と `planner` の設計のうち、作成・更新するドキュメントを渡して書かせる
+4. 両方が報告した変更ファイルの一覧（リポジトリルートからのパス）を控える。`doc-writer` が「実装と照らし合わせて確認が必要」とした箇所は、④の `doc-reviewer` に伝える。`implementer` の報告にドキュメントの更新が必要な点があれば、`doc-writer` に依頼してから④に進む（その変更ファイルも一覧に加える）
+
+## ④ レビュー
+
+1. `code-reviewer` と `quality-checker` を**並行して**起動し、両方に変更ファイルの一覧を渡す。ドキュメントを変更していれば `doc-reviewer` も同時に起動する。コードを変更していなければ `doc-reviewer` だけを起動する
+2. どれかで指摘があれば、内容をまとめて修正を依頼し（コードは `implementer`、ドキュメントは `doc-writer`。`code-reviewer` などから出たドキュメントの不足・誤りの指摘も `doc-writer` に回す。両方あれば並行して）、修正後にもう一度同じエージェントすべてに確認させる
+3. 指摘がなくなるまで繰り返す
+
+## ⑤ 動作確認
+
+1. `app/` 配下の変更したファイルだけを対象に、最終確認として lint とフォーマットを確認する（パスは `app/` からに直して渡す。型チェックは④で済んでいるので行わない。`app/` の外のドキュメントは④の `doc-reviewer` で確認済みとする）
+   - `pnpm --dir app exec eslint <変更した .ts/.tsx>`
+   - `pnpm --dir app exec prettier --check <変更したファイル>`
+   - エラーがあれば修正させ、④に戻る。コードのエラーは `implementer` に修正させる。`.md` の整形エラーは、メインがエラー内容（該当ファイルと箇所）を `doc-writer` に渡して直させる
+2. ユーザーに次をまとめて報告する
+   - レビュー結果とチェック結果の要約
+   - **ユーザーが画面で確認すべき箇所**: `pnpm --dir app run dev`（http://localhost:3000）で開いたあと、どの画面・パネルで、どう操作し、何が見えれば正しいか。UI に影響しない変更なら「UI の確認は不要」と理由付きで書く
+3. ユーザーが UI を確認して問題がないと答えるまで待つ。問題があれば内容を聞いて③に戻る（設計から見直す必要があれば②に戻る）
+
+## PR 作成
+
+1. 変更内容の要約と差分をユーザーに見せ、コミット・push・PR 作成の了承を取る
+2. 了承されたら、日本語のメッセージでコミットし、push して `gh pr create --base develop` で `develop` 向けの PR を作る。PR 本文には `Closes #<番号>` と変更の要約を書く
+3. 作成した PR の URL を報告する

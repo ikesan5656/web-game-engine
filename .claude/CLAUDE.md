@@ -17,6 +17,8 @@ pnpm i              # 依存パッケージのインストール
 pnpm run dev        # Vite 開発サーバー起動（http://localhost:3000）
 pnpm run build      # tsc -b && vite build（型チェック＋バンドル）
 pnpm run lint       # eslint .
+pnpm run format     # prettier --write .
+pnpm run format:check # prettier --check .
 pnpm run preview    # 本番ビルドのプレビュー
 ```
 
@@ -30,10 +32,14 @@ TypeScript は 7 系を使う。typescript-eslint が TS7 に未対応のため�
 
 ## サブエージェントの使い方
 
-`implementer` に実装を任せたら、終わった後に `code-reviewer` と `quality-checker` を**並行して**起動し、`implementer` が報告した変更ファイルの一覧を両方に渡す
+Issue 対応は `/issue` スキルの流れ（① 要件定義 `doc-reviewer` → ② 設計 `planner` → ③ 実装 `implementer`・`doc-writer` → ④ レビュー `code-reviewer`・`quality-checker` → ⑤ 動作確認）に従う。新規 Issue は、ユーザーが要件を了承してから起票する。
 
-- どちらかで指摘があれば、内容をまとめて `implementer` に修正を依頼し、修正後にもう一度両方に確認させる
-- 指摘がなくなったら、レビュー結果とチェック結果をユーザーに報告する
+ドキュメント（`*.md`、`docs/`、`.claude/` 配下など）の作成・更新は、メインや `implementer` では行わず `doc-writer` に任せる。コードの変更もあるときは、`implementer` と `doc-writer` を**並行して**起動する。
+
+`implementer`・`doc-writer` の作業が終わったら、`code-reviewer` と `quality-checker` を**並行して**起動し、両方が報告した変更ファイルの一覧を渡す。ドキュメント（`*.md`、`docs/`、`.claude/` 配下など）を変更していれば、`doc-reviewer` も同時に必ず起動する（コードを変更していなければ `doc-reviewer` だけを起動する）。
+
+- いずれかで指摘があれば、コードの指摘は `implementer`、ドキュメントの指摘は `doc-writer` に修正を依頼し（両方あれば並行して）、修正後に起動したエージェントすべてにもう一度確認させる
+- 指摘がなくなったら、lint とフォーマット（`prettier --check`）を確認し、レビュー結果・チェック結果と、ユーザーが画面で確認すべき箇所を報告する
 
 ## アーキテクチャ
 
