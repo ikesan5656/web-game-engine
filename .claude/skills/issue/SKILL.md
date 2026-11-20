@@ -18,7 +18,10 @@ allowed-tools: Bash(ls .github/ISSUE_TEMPLATE), Bash(gh issue view:*), Bash(gh i
 ## A. 既存 Issue の修正
 
 1. `gh issue view <番号> --comments` で本文とコメントを読む。内容が曖昧で修正方針を決められないときは、作業前にユーザーに確認する
-2. `develop` に切り替えて `git pull` で最新にし、そこから作業ブランチ `fix/issue-<番号>` を作る（開発の起点は `develop`。`main` は使わない）
+2. `develop` に切り替えて `git pull` で最新にし、そこから作業ブランチを作る（開発の起点は `develop`。`main` は使わない）
+   - バグの Issue（`bug` ラベルが付いている、またはタイトルが `[バグ]` で始まる）→ `bug/<修正内容>-<番号>`
+   - それ以外 → `feature/<修正内容>-<番号>`
+   - `<修正内容>` は内容を表す英語の kebab-case で、20文字まで（例: `bug/fix-mmd-load-error-12`）
 3. 関連ファイルを調べ、修正を実装する（`.claude/rules/` のルールに従う）
 4. 変更したファイルだけを確認する
    - `pnpm --dir app exec eslint <変更したファイル>`

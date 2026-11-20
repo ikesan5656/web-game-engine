@@ -1,7 +1,23 @@
 {
   "permissions": {
-    "allow": ["Bash(pnpm tsc --noEmit)"],
-    "ask": ["Bash(git push *)"],
+    "allow": [
+      "Bash(pnpm tsc --noEmit)",
+      "Bash(ls .github/ISSUE_TEMPLATE)",
+      "Bash(gh issue view *)",
+      "Bash(gh issue list *)",
+      "Bash(gh issue create *)",
+      "Bash(gh pr create *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git switch *)",
+      "Bash(git pull *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(pnpm --dir app exec eslint *)",
+      "Bash(pnpm --dir app exec tsc -b)",
+      "Bash(mktemp *)"
+    ],
     "deny": ["Read(./.env)", "Read(./.env.local)", "Read(./secrets/**)"]
   },
   "hooks": {
