@@ -35,22 +35,29 @@ pnpm run preview    # 本番ビルドのプレビュー
 
 ## アーキテクチャ
 
-**描画ツリー:** `main.tsx`（Redux `Provider`）→ `App` → `pages/Home`（ヘッダー＋遅延読み込みのエディタ）→ `container/EditorCanvas` → `scenesGl/SceneDev`
+入口: `app/src/main.tsx` → `pages/Home` → `container/EditorCanvas`（R3F の `<Canvas>`）→ `scenesGl/SceneDev`
 
-- `EditorCanvas` は R3F の `<Canvas>` を持ち、`hooks/useResizeObserver` で取得したサイズを明示的に指定する。また `config/keyConfig.ts` のキーマップを使って drei の `<KeyboardControls>` で囲んでいる。何もない場所をクリックする（`onPointerMissed`）と選択が解除される。
-- `scenesGl/` にはシーンの構成を置く（現状は開発用シーンのみ）。シーンは `components/webGl/` のカメラ制御、ライト、ヘルパー、モデルを組み合わせて作る。モデルの差し替えや表示切り替えはここで行う（実験用にいくつかコメントアウトされている）。
-- `components/webGl/` には再利用可能な R3F コンポーネントを置く。`CameraControl` は `useFrame` 内でキーボード操作によるカメラ移動を実装している（WASD／矢印キーで移動、Q/E でワールド Y 軸周りに回転）。キー状態は `useKeyboardControls` で取得するため、`KeyboardControls` の内側で描画する必要がある。
+- `scenesGl/`: シーンの構成（現状は開発用シーンのみ）
+- `components/webGl/`: 再利用する R3F 部品（カメラ操作、ライト、モデルなど）
+- `components/`・`styles/components/`: MUI の UI 部品
+- `redux/`: エディタの状態
 
-**選択／編集:** `redux/slices/editObjSlice.ts` が選択中の `three.Object3D` を `editObj.target` として保持する。クリック可能なメッシュは `setTarget(e.object)` を dispatch し（`ThreeBox` 参照）、`SceneDev` はそのターゲットに drei の `<TransformControls>` を付ける。シリアライズ不可能な three.js オブジェクトを Redux の state に直接入れている点に注意。`useSelector` は `redux/store.ts` から export している型付きのものを使う。
+設計の詳しい説明、各方針の理由、移行計画は `docs/architecture.md` にある。設計に関わる変更をするときは先に読むこと。
 
-**スタイリング:** MUI の `styled`／Emotion を使用。共通の styled コンポーネントは `styles/components/` にある。
+### 設計方針
 
-## import パス
+Ports and Adapters（ヘキサゴナルアーキテクチャ）を参考にし、**シーンをデータで持ち、three.js はそのデータを表示する層として扱う**。
 
-`tsconfig.json` で `baseUrl: "src"` を設定し、`vite-tsconfig-paths` で解決しているため、`src/` からの相対パスをそのまま書いて import する（例: `import { store } from "redux/store"`、`components/webGl/MMDModel`）。古いファイルには相対パスの import が残っているものもある。
+- 正となるデータは three.js の外に置く。`Object3D` は描画の結果であって、Redux などの state には保持しない。選択などは ID で持つ
+- 依存の向きは「UI・描画・保存 → エディタ → コア」の一方向だけにする
+- コア（予定: `app/src/core/`）は純粋な TypeScript で書き、`three`・`react`・`redux` を import しない。ベクトルなどは `[x, y, z]` のような単純な型で持ち、描画層で変換する
+- 編集操作（移動・追加・削除など）はコマンドとして実装し、Undo できるようにする
+- 毎フレーム変わる値は React の state や Redux を通さず、`useFrame` の中で ref などを直接更新する。この部分は性能を優先し、層を挟まずに書いてよい
+- 「クリーンアーキテクチャ」などの名前に合わせて、UseCase・Repository・Presenter といった層を増やさない
 
-## 3D アセット
+### 現状と方針の差
 
-- `app/public/` の glTF/GLB ファイルは絶対 URL で読み込む（例: `useLoader(GLTFLoader, "/AvatarSample_M_converted.glb")`）。
-- MMD アセットは `app/src/assets/`（`miku/`、`hotaru/`）にある。`vite.config.ts` で `.pmx/.pmd/.vmd` を `assetsInclude` に追加し、`src/global.d.ts` で文字列モジュールとして型宣言している。URL は `new URL("../assets/...", import.meta.url).href` で解決すること。単なる相対パスの文字列を渡すと開発サーバーが HTML の 404 ページを返し、`MMDLoader` がそれを誤って解析してしまう。
-- MMD コンポーネント（`MMDModel`、`MMDModelWithAnim`）は three の `MMDLoader` と `MMDAnimationHelper` を `physics: false` で使用している。ammo.js による物理演算はまだ組み込まれていない（TODO）。
+移行前の暫定実装が残っている。既存の挙動を保つタスクであればそのまま使ってよいが、新しいコードでは同じ書き方を広げないこと。
+
+- `redux/slices/editObjSlice.ts` が `Object3D` を `editObj.target` に直接保持している
+- シーンのオブジェクト配置は、データではなく `SceneDev` に直接書かれている
