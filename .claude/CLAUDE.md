@@ -58,6 +58,7 @@ Issue 対応は `/issue` スキルの流れ（① 要件定義 `doc-reviewer` �
 - `components/webGl/`: 再利用する R3F 部品（カメラ操作、ライト、モデルなど）
 - `components/`・`styles/components/`: MUI の UI 部品
 - `redux/`: エディタの状態
+- `core/`: シーンデータの型など。`three`・`react`・`redux` に依存しない純粋な TypeScript
 
 設計の詳しい説明、各方針の理由、移行計画は `docs/architecture.md` にある。設計に関わる変更をするときは先に読むこと。
 
@@ -67,7 +68,7 @@ Ports and Adapters（ヘキサゴナルアーキテクチャ）を参考にし�
 
 - 正となるデータは three.js の外に置く。`Object3D` は描画の結果であって、Redux などの state には保持しない。選択などは ID で持つ
 - 依存の向きは「UI・描画・保存 → エディタ → コア」の一方向だけにする
-- コア（予定: `app/src/core/`）は純粋な TypeScript で書き、`three`・`react`・`redux` を import しない。ベクトルなどは `[x, y, z]` のような単純な型で持ち、描画層で変換する
+- コア（`app/src/core/`）は純粋な TypeScript で書き、`three`・`react`・`redux` を import しない。ベクトルなどは `[x, y, z]` のような単純な型で持ち、描画層で変換する。ファイルは `.ts` だけにし、コア内の import も `core/...` の形で書く（`core/...` 以外や `..` を含むパスの import、動的 import、JSX は ESLint でエラーになる）
 - 編集操作（移動・追加・削除など）はコマンドとして実装し、Undo できるようにする
 - 毎フレーム変わる値は React の state や Redux を通さず、`useFrame` の中で ref などを直接更新する。この部分は性能を優先し、層を挟まずに書いてよい
 - 「クリーンアーキテクチャ」などの名前に合わせて、UseCase・Repository・Presenter といった層を増やさない

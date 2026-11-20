@@ -20,7 +20,7 @@ WebGameEngine の設計方針、その理由、現状からの移行計画をま
 ```
 ┌ UI 層（MUI）            … ヒエラルキー、インスペクタ、ツールバー
 ├ エディタ状態（Redux）   … 選択中の ID、ツールのモード、表示設定（グリッドなど）、Undo の履歴
-├ シーンデータ（コア）    … エンティティ一覧、Transform、アセット ID（シリアライズ可能）
+├ シーンデータ（コア）    … エンティティ一覧、Transform、アセットの参照（シリアライズ可能。参照は当面 URL、のちにアセット ID）
 ├ ランタイム（useFrame）  … 毎フレームの更新（移動、アニメーション、物理）
 └ 描画層（R3F）           … シーンデータを Object3D に変換して表示
 ```
@@ -39,6 +39,32 @@ UI（MUI） ─┐
 | エディタ   | コマンド、Undo の履歴、選択状態、表示設定        | コアだけに依存する。ユースケースに当たる層                |
 | アダプタ   | R3F の描画、ローダー、ファイルの保存と読み込み   | 薄く作る。保存先は Interface にしておくと差し替えやすい   |
 | ランタイム | `useFrame` 内の更新処理                          | 性能を優先し、層を挟まずに直接書く                        |
+
+コアの方針は ESLint で強制している（`app/eslint.config.js`）。`app/src/core/` のファイル（`.ts` だけでなく `.tsx`・`.js`・`.jsx`・`.mjs`・`.cjs` も対象）は `no-restricted-imports` により `core/...` 以外を import できず、`three`・`react`・`redux` などの外部パッケージも、コアの外のモジュール（`components/...` や `../` による相対 import）も使えない。`core/../redux/store` のように `..` を含むパスも、`core/` で始まっていても禁止している。動的 `import()`・`import("...")` 型・JSX も `no-restricted-syntax` で禁止している。
+
+## コア層のデータ型
+
+シーンデータの型は `app/src/core/` に置く。コア内の import も `core/...` の形で書き、ファイルは `.ts` だけにする。
+
+- `math/vec3.ts`: `Vec3`（`[x, y, z]` のタプル）
+- `scene/entityId.ts`: `EntityId`、`toEntityId`、`createEntityId`
+- `scene/transform.ts`: `Transform`（位置・回転・スケール）、`createDefaultTransform`
+- `scene/components.ts`: `Component`（`mesh`・`model`・`directionalLight` の判別共用体）と、各コンポーネント・形状・マテリアルの型
+- `scene/entity.ts`: `Entity`（`{ id, name, transform, components }`）、`findComponent`
+- `scene/sceneData.ts`: `SceneData`（`{ entities: Entity[] }`）
+
+データには次の約束がある。型では強制していないものも含む。
+
+- **保存するデータの型では、省略可能なプロパティ（`?:`）を使わない**: 値がないときは `null` を入れる。`undefined` は JSON にすると消え、保存と読み込みで形が変わるため。`findComponent` などの関数が見つからないときに `undefined` を返すのは対象外。
+- **数値は有限の値だけにする**: `NaN`・`Infinity` は JSON にすると `null` になるため。
+- **回転はオイラー角（ラジアン）で、順序は `XYZ` に固定する**: three の `Euler` の既定と同じなので R3F の `rotation` にそのまま渡せ、インスペクタでも編集しやすいため。
+- **`entities` の配列の順序をヒエラルキーの表示順とする**: 表示順を別のデータで持たずに済み、JSON にしても順序が保たれるため（ID をキーにしたオブジェクトでは、`"1"` のような整数に見えるキーの順序が入れ替わる）。親子関係を追加した後は、同じ親を持つエンティティ同士の順序になる。
+- **同じ種類のコンポーネントは 1 つのエンティティに 1 つまで**: 描画層や `findComponent` が種類ごとに 1 つだけあるものとして扱え、インスペクタでも種類ごとに 1 つの欄を出せるようにするため。
+- **モデルの URL は `public/` からの相対パスにする（先頭に `/` を付けない）**: デプロイ先（GitHub Pages のサブパス）や開発サーバーに依存させないため。`import.meta.env.BASE_URL` を前に付けるのは描画層で行う。親 Issue #7 のフェーズ 4 でアセット ID に置き換える。
+- **エンティティ ID はブランド型の文字列にする**: 名前や URL などのほかの文字列と取り違えないため。新しい ID は `createEntityId`（`crypto.randomUUID`）で作り、初期データでは `toEntityId("floor")` のような固定の ID を使う。`crypto.randomUUID` はセキュアコンテキスト（`localhost` や https）でしか使えない。
+- **ディレクショナルライトは Transform の回転とスケールを使わない**: three の `DirectionalLight` は位置から target（既定では原点）に向けて照らすので、向きは位置で決まるため。
+
+親子関係はまだ持たない。親 Issue #7 のフェーズ 3 で `Entity` に `parentId: EntityId | null` を足す。エディタ側の表示（カメラ操作、ギズモ、グリッド、`TransformControls`、ライトのヘルパー）はシーンデータに含めない。
 
 ## 状態管理の使い分け
 
@@ -80,15 +106,15 @@ R3F 周辺では、React の外から `getState()` で読み書きできてゲ�
 - `app/src/redux/slices/editObjSlice.ts` が、選択中の `Object3D` を `editObj.target` として直接保持している。クリック可能なメッシュが `setTarget(e.object)` を dispatch し（`components/webGl/ThreeBox.tsx`）、`scenesGl/SceneDev.tsx` がそのターゲットに drei の `<TransformControls>` を付けている。
   - シーンを JSON にできない、Undo/Redo を作れない、`TransformControls` で動かした位置が Redux に反映されない、という問題がある。
 - シーンのオブジェクト配置は `SceneDev.tsx` に直接書かれており、データとして持っていない。
-- コア層（`app/src/core/`）はまだない。
+- `app/src/core/` にシーンデータの型（`EntityId`・`Transform`・`Component`・`Entity`・`SceneData`）があるが、まだ描画には使っていない。
 
 ## 移行計画
 
-プロトタイプなので段階的に進める。
+プロトタイプなので段階的に進める。1〜3 は親 Issue #7 のフェーズ 1 に当たる。
 
-1. **選択を ID ベースにする**: `editObj.target` を `Object3D` から `entityId` に変える。
-2. **シーンをデータで持つ**: `{ id, type, assetId, transform }` の配列をコアに置き、`SceneDev` はそこから描画する。`TransformControls` の操作結果は、確定時にデータへ書き戻す。
-3. **編集操作をコマンドにする**: 「移動」「追加」などをコマンドオブジェクトにし、Undo/Redo に対応する。
+1. **シーンをデータで持つ**: コアにシーンデータの型を定義し（済み）、`SceneDev` の配置をそのデータに移して、データから描画する。シーンデータは `{ id, name, transform, components }` のエンティティの配列（`SceneData.entities`）で、モデルは当面 URL で参照する。
+2. **選択を ID ベースにする**: `editObj.target` を `Object3D` から `EntityId` に変える。
+3. **編集操作をコマンドにする**: 「移動」「追加」などをコマンドオブジェクトにし、Undo/Redo に対応する。`TransformControls` での操作結果は、確定時に移動コマンドとしてデータへ書き戻す。
 4. **ゲームロジックが増えたら ECS を入れる**: 候補は koota（pmndrs）、miniplex、bitecs。1〜3 ができていれば、データ構造を移すだけで済む。
 
 1 と 2 だけでも、保存と読み込み、インスペクタ、Undo の土台ができる。
