@@ -32,7 +32,7 @@ TypeScript は 7 系を使う。typescript-eslint が TS7 に未対応のため�
 
 ## サブエージェントの使い方
 
-Issue 対応は `/issue` スキルの流れ（① 要件定義 `doc-reviewer` → ② 設計 `planner` → ③ 実装 `implementer`・`doc-writer` → ④ レビュー `code-reviewer`・`quality-checker` → ⑤ 動作確認）に従う。新規 Issue は、ユーザーが要件を了承してから起票する。
+Issue 対応は `/issue` スキルの流れ（① 要件定義 `doc-reviewer` → ② 設計 `planner` → ③ 実装 `implementer`・`doc-writer` → ④ レビュー `code-reviewer`・`quality-checker` → ⑤ 動作確認 → PR 作成）に従う。新規 Issue は、ユーザーが要件を了承してから起票する。各工程の終わりにユーザーの了承を取り、進捗は Issue の工程ごとのコメントと本文最上部のステータス欄に記録する。
 
 ドキュメント（`*.md`、`docs/`、`.claude/` 配下など）の作成・更新は、メインや `implementer` では行わず `doc-writer` に任せる。コードの変更もあるときは、`implementer` と `doc-writer` を**並行して**起動する。
 
