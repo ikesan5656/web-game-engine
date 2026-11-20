@@ -7,8 +7,6 @@ import { CameraControl } from "components/webGl/CameraControl";
 import { DirectionalLightCustom } from "components/webGl/DirectionalLightCustom";
 import { EditorGrid } from "components/webGl/EditorGrid";
 import GltfModel from "components/webGl/GltfModel";
-import { MMDModel } from "components/webGl/MMDModel";
-import { MMDModelWithAnim } from "components/webGl/MMDModelWithAnim";
 //import { ThreeBox } from "components/webGl/ThreeBox";
 import { ThreeGizmo } from "components/webGl/ThreeGizmo";
 //import { useRef } from "react";
@@ -25,12 +23,12 @@ export const SceneDev = () => {
   // Vite: resolve asset URL so dev server returns the actual binary file,
   // otherwise a relative path may return an HTML 404 page which MMDLoader
   // will interpret incorrectly (e.g. starting with "<!d").
-  const mikuModelUrl = new URL("../assets/miku/miku_v2.pmd", import.meta.url)
+  /*const mikuModelUrl = new URL("../assets/miku/miku_v2.pmd", import.meta.url)
     .href;
   const mikuVmdUrl = new URL(
     "../assets/miku/vmds/wavefile_v2.vmd",
     import.meta.url
-  ).href;
+  ).href;*/
 
   return (
     <group>

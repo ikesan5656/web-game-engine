@@ -3,9 +3,9 @@ import { GLTFLoader } from "three/examples/jsm/Addons.js";
 import * as THREE from "three";
 
 const GltfModel = () => {
-  const { scene, animations } = useLoader(
+  const { scene } = useLoader(
     GLTFLoader,
-    "/AvatarSample_M_converted.glb"
+    `${import.meta.env.BASE_URL}AvatarSample_M_converted.glb`
   );
   const mixer = new THREE.AnimationMixer(scene);
   //mixer.clipAction(animations[0]).play();
