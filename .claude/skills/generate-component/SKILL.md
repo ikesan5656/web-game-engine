@@ -25,7 +25,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(pnpm --dir app exec eslint:*)
 
 - **named export のみ**（`export const Foo = () => ...`）。default export は使わない。
 - **`any` 禁止**。props は `interface <Name>Props` で型を書く。three.js の型は `three` から import する。
-- **import は `src/` 起点のパス**（`tsconfig.json` の `baseUrl: "src"`）。例: `import { setTarget } from "redux/slices/editObjSlice";`。`../` の相対パスは使わない。
+- **import は `src/` 起点のパス**（`tsconfig.json` の `paths` で `./src/*` に解決）。例: `import { setTarget } from "redux/slices/editObjSlice";`。`../` の相対パスは使わない。
 - **CSS ファイルは作らない**。見た目は MUI で付ける。
 - **コメントは日本語**。コンポーネントの役割を JSDoc（`/** ... */`）で1〜3行書く。
 - `useSelector` は `redux/store` から export されている型付きのものを使う。

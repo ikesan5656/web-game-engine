@@ -1,8 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import { AnimationClip, Group } from "three";
-import { MMDLoader } from "three/addons/loaders/MMDLoader.js";
-import { MMDAnimationHelper } from "three/addons/animation/MMDAnimationHelper.js";
+import { MMDAnimationHelper, MMDLoader } from "three-stdlib";
 
 interface MMDModelProps {
   modelPath: string;

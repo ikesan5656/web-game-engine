@@ -1,8 +1,7 @@
 import { useFrame, useLoader } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
-import { SkinnedMesh } from "three";
-import { MMDLoader } from "three/addons/loaders/MMDLoader.js";
-import { MMDAnimationHelper } from "three/examples/jsm/animation/MMDAnimationHelper";
+import { AnimationClip, SkinnedMesh } from "three";
+import { MMDAnimationHelper, MMDLoader } from "three-stdlib";
 
 interface MMDModelProps {
   modelPath: string;
@@ -17,22 +16,20 @@ export const MMDModel = ({
 }: MMDModelProps) => {
   console.log("描画");
   const mesh = useLoader(MMDLoader, modelPath) as SkinnedMesh;
-  const helper = useRef<MMDAnimationHelper>();
-  const [ready, setReady] = useState(false);
+  const helper = useRef<MMDAnimationHelper>(undefined);
+  const [motionLoaded, setMotionLoaded] = useState(false);
+  // モーションがなければ読み込みを待たずに表示する
+  const ready = !motionPath || motionLoaded;
 
   useEffect(() => {
     console.log("useEffect");
     // MMDLoaderのインスタンスを作成
     const loader = new MMDLoader();
-    helper.current = new MMDAnimationHelper({
-      afterglow: 2.0,
-      physics: false, // TODO: ammo.jsを読み込めるようにする
-      ik: true,
-    });
+    // IK はデフォルトで有効
+    helper.current = new MMDAnimationHelper({ afterglow: 2.0 });
 
     if (!motionPath) {
       console.log("モーションなし");
-      setReady(true);
       return;
     }
 
@@ -40,13 +37,14 @@ export const MMDModel = ({
       motionPath,
       mesh,
       (animation) => {
+        // SkinnedMesh に読み込んだときは AnimationClip が返る
+        if (!(animation instanceof AnimationClip)) return;
         helper.current!.add(mesh, {
           animation,
           physics: false, // TODO: ammo.jsを読み込めるようにする
-          ik: true,
         });
         console.log("ready");
-        setReady(true); // ← ここで初めて表示
+        setMotionLoaded(true); // ← ここで初めて表示
       },
       undefined,
       (error) => {
