@@ -14,3 +14,14 @@ export const createDefaultTransform = (): Transform => ({
   rotation: [0, 0, 0],
   scale: [1, 1, 1],
 });
+
+/** 2 つの Transform の中身が等しいか（要素ごとに `===` で比べる） */
+export const transformEquals = (a: Transform, b: Transform): boolean => {
+  const vecEquals = (x: Vec3, y: Vec3) =>
+    x[0] === y[0] && x[1] === y[1] && x[2] === y[2];
+  return (
+    vecEquals(a.position, b.position) &&
+    vecEquals(a.rotation, b.rotation) &&
+    vecEquals(a.scale, b.scale)
+  );
+};

@@ -66,8 +66,9 @@ Issue 対応は `/issue` スキルの流れ（① 要件定義 `doc-reviewer` �
 - `components/webGl/`: 再利用する R3F 部品（カメラ操作、ライト、モデルなど）
 - `components/webGl/sceneView/`: シーンデータ（エンティティの配列）の描画と、ID から根の `Object3D` を引くレジストリ（`entityObjectRegistry.ts`・`EntityObjectRegistryProvider`）
 - `components/`・`styles/components/`: MUI の UI 部品
-- `redux/`: エディタの状態（選択の `selection` slice など）とシーンデータ（`scene` slice）
-- `core/`: シーンデータの型と初期データ（`core/scene/devScene.ts`）など。`three`・`react`・`redux` に依存しない純粋な TypeScript
+- `redux/`: エディタの状態（選択の `selection` slice、Undo/Redo の履歴の `history` slice、ドラッグ中の一時状態の `transformEdit` slice など）とシーンデータ（`scene` slice）。編集操作のコマンドの実行・Undo・Redo は `redux/commands.ts` の thunk を通す
+- `hooks/`・`utils/`: Undo/Redo のショートカット（`hooks/useUndoRedoShortcuts.ts`）、入力欄の判定（`utils/isTextEditingElement.ts`）
+- `core/`: シーンデータの型と初期データ（`core/scene/devScene.ts`）、コマンドの型と適用・取り消し（`core/command/`）など。`three`・`react`・`redux` に依存しない純粋な TypeScript
 
 設計の詳しい説明、各方針の理由、移行計画は `docs/architecture.md` にある。設計に関わる変更をするときは先に読むこと。
 
@@ -86,4 +87,4 @@ Ports and Adapters（ヘキサゴナルアーキテクチャ）を参考にし�
 
 移行前の暫定実装で、設計方針と食い違うものを挙げる。ほかに見つけたり、やむを得ず加えたりしたときはここに書く。既存の挙動を保つタスクであればそのまま使ってよいが、新しいコードでは同じ書き方を広げないこと。
 
-- `TransformControls` で動かした位置は `Object3D` にだけ反映され、シーンデータに書き戻されない（`docs/architecture.md` の移行計画 3 のコマンド化で解消する）。新しいコードで、`Object3D` の位置を正として読む書き方を広げないこと
+- 現在、食い違うものはない。

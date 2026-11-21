@@ -4,7 +4,8 @@
  */
 
 import { TransformControls } from "@react-three/drei";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
+import type { Object3D } from "three";
 import { CameraControl } from "components/webGl/CameraControl";
 import { EditorGrid } from "components/webGl/EditorGrid";
 import { useEntityObject } from "components/webGl/sceneView/entityObjectRegistry";
@@ -12,7 +13,9 @@ import { SceneView } from "components/webGl/sceneView/SceneView";
 import { ThreeGizmo } from "components/webGl/ThreeGizmo";
 import { devSceneIds } from "core/scene/devScene";
 import { findComponent, type Entity } from "core/scene/entity";
+import type { Vec3 } from "core/math/vec3";
 import type { EntityId } from "core/scene/entityId";
+import { beginTransformDrag, endTransformDrag } from "redux/commands";
 import { selectEntity } from "redux/slices/selectionSlice";
 import { useDispatch, useSelector } from "redux/store";
 
@@ -24,6 +27,13 @@ import { useDispatch, useSelector } from "redux/store";
 const isSelectable = (entity: Entity) =>
   findComponent(entity, "mesh") !== undefined &&
   entity.id !== devSceneIds.floor;
+
+/** Object3D の位置を Vec3 にする（Vector3 は state に入れない） */
+const toVec3 = (object: Object3D): Vec3 => [
+  object.position.x,
+  object.position.y,
+  object.position.z,
+];
 
 export const SceneDev = () => {
   const dispatch = useDispatch();
@@ -44,6 +54,27 @@ export const SceneDev = () => {
     [dispatch]
   );
 
+  // TransformControls のドラッグ開始・確定。確定時に移動コマンドとして履歴に積む
+  const onDragStart = useCallback(() => {
+    if (selectedEntityId) dispatch(beginTransformDrag(selectedEntityId));
+  }, [dispatch, selectedEntityId]);
+  const onDragEnd = useCallback(() => {
+    if (selectedEntityId && selectedObject) {
+      dispatch(endTransformDrag(selectedEntityId, toVec3(selectedObject)));
+    }
+  }, [dispatch, selectedEntityId, selectedObject]);
+
+  // ドラッグ中に TransformControls が外れたときも確定する（ドラッグ中でなければ何も起きない）
+  useEffect(() => {
+    if (!selectedEntityId || !selectedObject) return;
+    // この effect が対象にしていたエンティティの ID と Object3D
+    const entityId = selectedEntityId;
+    const object = selectedObject;
+    return () => {
+      dispatch(endTransformDrag(entityId, toVec3(object)));
+    };
+  }, [dispatch, selectedEntityId, selectedObject]);
+
   return (
     <group>
       <CameraControl initialPosition={[0, 7, 8]} />
@@ -51,7 +82,12 @@ export const SceneDev = () => {
       {gridVisible && <EditorGrid />}
 
       {selectedObject && (
-        <TransformControls object={selectedObject} mode={"translate"} />
+        <TransformControls
+          object={selectedObject}
+          mode={"translate"}
+          onMouseDown={onDragStart}
+          onMouseUp={onDragEnd}
+        />
       )}
 
       <SceneView
