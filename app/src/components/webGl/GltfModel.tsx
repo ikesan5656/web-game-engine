@@ -1,23 +1,21 @@
-import { useFrame, useLoader } from "@react-three/fiber";
-import { GLTFLoader } from "three/examples/jsm/Addons.js";
-import * as THREE from "three";
+import { useLoader } from "@react-three/fiber";
+import { useMemo } from "react";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 
-const GltfModel = () => {
-  const { scene } = useLoader(
-    GLTFLoader,
-    `${import.meta.env.BASE_URL}AvatarSample_M_converted.glb`
-  );
-  const mixer = new THREE.AnimationMixer(scene);
-  //mixer.clipAction(animations[0]).play();
-  //mixer.clipAction(animations[1]).play();
+interface GltfModelProps {
+  /** 読み込む URL（BASE_URL を付けたもの） */
+  url: string;
+}
 
-  useFrame((_, delta) => {
-    mixer.update(delta);
-  });
+/**
+ * glTF（.gltf/.glb）のモデル。
+ * useLoader は同じ URL で同じ scene を返すので、複製して同じモデルを複数置けるようにする
+ */
+export const GltfModel = (props: GltfModelProps) => {
+  const { url } = props;
+  const { scene } = useLoader(GLTFLoader, url);
+  const model = useMemo(() => clone(scene), [scene]);
 
-  return (
-    <primitive object={scene} position={[0, 3, 0]} rotation={[0, Math.PI, 0]} />
-  );
+  return <primitive object={model} />;
 };
-
-export default GltfModel;
