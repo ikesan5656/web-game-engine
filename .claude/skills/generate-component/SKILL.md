@@ -129,7 +129,7 @@ export const SidePanel = ({ title }: SidePanelProps) => {
 ```
 
 - ボタンや入力欄は MUI の部品（`Button`、`TextField`、`Typography` など）を使う。一度しか使わない小さな調整は `sx` でよい。
-- **選択中のエンティティの情報を表示するときの注意**: 選択は Redux の `selection` slice に ID（`selectedEntityId`、未選択は `null`）で持っている。表示する値（名前、位置など）は、その ID で `scene` slice のエンティティから読むのが原則で、Canvas の外の UI から `Object3D` を直接読む書き方はしない（`useEntityObject` は `Object3D` そのものが要る 3D のエディタ表示のためのもので、値の読み取りには使わない）。ただし今は `TransformControls` で動かした位置がシーンデータに書き戻されない（編集操作をコマンドにするまで）ので、`scene` slice の位置は動かす前の値のままになる。位置を表示する部品を作るときは、報告でその旨を伝える。
+- **選択中のエンティティの情報を表示するときの注意**: 選択は Redux の `selection` slice に ID（`selectedEntityId`、未選択は `null`）で持っている。表示する値（名前、位置など）は、その ID で `scene` slice のエンティティから読むのが原則で、Canvas の外の UI から `Object3D` を直接読む書き方はしない（`useEntityObject` は `Object3D` そのものが要る 3D のエディタ表示のためのもので、値の読み取りには使わない）。`TransformControls` で動かした位置は、確定（ドラッグ終了）時に移動コマンドで `scene` slice に書き戻されるので、ドラッグ中は `scene` slice の位置が動かす前の値のままになる。
 - 名前を表示するときはエンティティの `name`（`Entity.name`）を使う。空の場合に備えて、空のときの表示（例：「(名前なし)」）を用意する。
 
 ## 5. 作ったファイルだけを確認する
