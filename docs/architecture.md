@@ -25,6 +25,8 @@ WebGameEngine の設計方針、その理由、現状からの移行計画をま
 └ 描画層（R3F）           … シーンデータを Object3D に変換して表示
 ```
 
+シーンデータの型と初期データはコアに置き、実行中の値は Redux の `scene` slice が持つ（「状態管理の使い分け」を参照）。
+
 依存の向き:
 
 ```
@@ -49,9 +51,10 @@ UI（MUI） ─┐
 - `math/vec3.ts`: `Vec3`（`[x, y, z]` のタプル）
 - `scene/entityId.ts`: `EntityId`、`toEntityId`、`createEntityId`
 - `scene/transform.ts`: `Transform`（位置・回転・スケール）、`createDefaultTransform`
-- `scene/components.ts`: `Component`（`mesh`・`model`・`directionalLight` の判別共用体）と、各コンポーネント・形状・マテリアルの型
+- `scene/components.ts`: `Component`（`mesh`・`model`・`directionalLight` の判別共用体）と、各コンポーネント・形状・マテリアルの型。`ModelComponent` は `format` で判別する共用体で、glTF の `GltfModelComponent`（`{ type: "model"; format: "gltf"; url }`）と MMD の `MmdModelComponent`（`{ type: "model"; format: "mmd"; url; motionUrl: string | null }`）がある。MMD のモーション（VMD）がないときは `motionUrl` を `null` にする
 - `scene/entity.ts`: `Entity`（`{ id, name, transform, components }`）、`findComponent`
 - `scene/sceneData.ts`: `SceneData`（`{ entities: Entity[] }`）
+- `scene/devScene.ts`: 開発用シーンの初期データ。初期データのエンティティの固定 ID をまとめた `devSceneIds` と、`createDevScene(): SceneData`（呼ぶたびに新しいオブジェクトを返す）
 
 データには次の約束がある。型では強制していないものも含む。
 
@@ -60,7 +63,7 @@ UI（MUI） ─┐
 - **回転はオイラー角（ラジアン）で、順序は `XYZ` に固定する**: three の `Euler` の既定と同じなので R3F の `rotation` にそのまま渡せ、インスペクタでも編集しやすいため。
 - **`entities` の配列の順序をヒエラルキーの表示順とする**: 表示順を別のデータで持たずに済み、JSON にしても順序が保たれるため（ID をキーにしたオブジェクトでは、`"1"` のような整数に見えるキーの順序が入れ替わる）。親子関係を追加した後は、同じ親を持つエンティティ同士の順序になる。
 - **同じ種類のコンポーネントは 1 つのエンティティに 1 つまで**: 描画層や `findComponent` が種類ごとに 1 つだけあるものとして扱え、インスペクタでも種類ごとに 1 つの欄を出せるようにするため。
-- **モデルの URL は `public/` からの相対パスにする（先頭に `/` を付けない）**: デプロイ先（GitHub Pages のサブパス）や開発サーバーに依存させないため。`import.meta.env.BASE_URL` を前に付けるのは描画層で行う。親 Issue #7 のフェーズ 4 でアセット ID に置き換える。
+- **モデルの URL は `public/` からの相対パスにする（先頭に `/` を付けない）**: デプロイ先（GitHub Pages のサブパス）や開発サーバーに依存させないため。glTF のモデルも、MMD のモデル（`url`）とモーション（`motionUrl`）も同じ約束に従う。`import.meta.env.BASE_URL` を前に付けるのは描画層（`components/webGl/sceneView/resolvePublicUrl.ts`）で行う。親 Issue #7 のフェーズ 4 でアセット ID に置き換える。
 - **エンティティ ID はブランド型の文字列にする**: 名前や URL などのほかの文字列と取り違えないため。新しい ID は `createEntityId`（`crypto.randomUUID`）で作り、初期データでは `toEntityId("floor")` のような固定の ID を使う。`crypto.randomUUID` はセキュアコンテキスト（`localhost` や https）でしか使えない。
 - **ディレクショナルライトは Transform の回転とスケールを使わない**: three の `DirectionalLight` は位置から target（既定では原点）に向けて照らすので、向きは位置で決まるため。
 
@@ -68,6 +71,7 @@ UI（MUI） ─┐
 
 ## 状態管理の使い分け
 
+- **シーンデータ**: Redux の `scene` slice（`app/src/redux/slices/sceneSlice.ts`）に置く。型と初期データ（`createDevScene()`）はコアに置き、エディタ層の slice からコアへ一方向に import する。state の配列やオブジェクトは immer に凍結されるので、reducer の外で書き換えない。変更は reducer（のちにコマンド）を通して行う。
 - **エディタの操作（選択、追加、削除、プロパティの編集）**: Redux で管理する。ドラッグ中のように頻繁に起きる更新は、確定時（ドラッグ終了時など）にだけ dispatch する。
 - **エディタの表示設定（グリッドの表示・非表示など）**: エディタ状態として Redux（`editorView` slice、`app/src/redux/slices/editorViewSlice.ts`）で管理する。シーンのデータではなく、シーンの保存や Undo の対象にもしないので、コア（`app/src/core/`）には置かない。
 - **毎フレーム変わる値（ゲーム実行中の位置や速度など）**: React の state を通さず、`useFrame` の中で ref や ECS のデータを直接書き換える。毎フレーム再レンダリングが走ると、すぐに重くなる。
@@ -103,17 +107,18 @@ R3F 周辺では、React の外から `getState()` で読み書きできてゲ�
 
 ## 現状
 
-- `app/src/redux/slices/editObjSlice.ts` が、選択中の `Object3D` を `editObj.target` として直接保持している。クリック可能なメッシュが `setTarget(e.object)` を dispatch し（`components/webGl/ThreeBox.tsx`）、`scenesGl/SceneDev.tsx` がそのターゲットに drei の `<TransformControls>` を付けている。
-  - シーンを JSON にできない、Undo/Redo を作れない、`TransformControls` で動かした位置が Redux に反映されない、という問題がある。
-- シーンのオブジェクト配置は `SceneDev.tsx` に直接書かれており、データとして持っていない。
-- `app/src/core/` にシーンデータの型（`EntityId`・`Transform`・`Component`・`Entity`・`SceneData`）があるが、まだ描画には使っていない。
+- シーンの配置はデータで持っている。初期データはコアの `core/scene/devScene.ts`（`createDevScene()`）にあり、Redux の `scene` slice がそれを `initialState` として持つ。`scenesGl/SceneDev.tsx` が `scene` slice のエンティティを `components/webGl/sceneView/` の `SceneView` に渡して描画する。エディタ側の表示（カメラ操作、ギズモ、グリッド、`TransformControls`）は `SceneDev` に置き、ライトのヘルパーと太陽のテクスチャはライトの描画部品が持つ。
+- 選択はまだ `Object3D` で持っている。`app/src/redux/slices/editObjSlice.ts` が、選択中の `Object3D` を `editObj.target` として直接保持している。`SceneDev` が選べるエンティティ（暫定で、`mesh` を持ち床でないもの）を決め、そのエンティティの根の `Object3D` を `setTarget(...)` で dispatch し、そのターゲットに drei の `<TransformControls>` を付けている。
+  - `TransformControls` で動かした位置はシーンデータに書き戻されない。データが変わらない限り Transform を再適用しないので、再描画で元の位置に戻ることはない。
+  - 選べるエンティティの条件は、選択と移動を確かめるための暫定。どのエンティティをクリックで選べるようにするかは、親 Issue #7 のフェーズ 2（シーンビューのクリックでの選択）で決める。R3F はイベントハンドラを持つ物とその子孫だけを raycast の対象にするので、今はハンドラを持たない手前のモデルが奥の立方体へのクリックを遮らない。モデルを選べるようにすると手前のモデルが先にヒットするようになるため、この点もフェーズ 2 の選択の設計で扱う。
+  - `editObj.target` の `Object3D` は `TransformControls` などに書き換えられ、開発時に RTK の immutableCheck が例外を投げるため、`app/src/redux/store.ts` の middleware で `editObj.target` を immutableCheck と serializableCheck の対象から外している（`ignoredActions` には `setTarget.type` を使う）。暫定の設定で、選択を ID ベースにするときに取り除く。
 
 ## 移行計画
 
 プロトタイプなので段階的に進める。1〜3 は親 Issue #7 のフェーズ 1 に当たる。
 
-1. **シーンをデータで持つ**: コアにシーンデータの型を定義し（済み）、`SceneDev` の配置をそのデータに移して、データから描画する。シーンデータは `{ id, name, transform, components }` のエンティティの配列（`SceneData.entities`）で、モデルは当面 URL で参照する。
-2. **選択を ID ベースにする**: `editObj.target` を `Object3D` から `EntityId` に変える。
+1. **シーンをデータで持つ**（済み）: コアにシーンデータの型を定義し、`SceneDev` の配置をそのデータに移して、データから描画する。シーンデータは `{ id, name, transform, components }` のエンティティの配列（`SceneData.entities`）で、モデルは当面 URL で参照する。
+2. **選択を ID ベースにする**: `editObj.target` を `Object3D` から `EntityId` に変える。`store.ts` で `editObj.target` を immutableCheck・serializableCheck から外している設定もここで取り除く。
 3. **編集操作をコマンドにする**: 「移動」「追加」などをコマンドオブジェクトにし、Undo/Redo に対応する。`TransformControls` での操作結果は、確定時に移動コマンドとしてデータへ書き戻す。
 4. **ゲームロジックが増えたら ECS を入れる**: 候補は koota（pmndrs）、miniplex、bitecs。1〜3 ができていれば、データ構造を移すだけで済む。
 

@@ -25,7 +25,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(pnpm --dir app exec eslint:*)
 
 - **named export のみ**（`export const Foo = () => ...`）。default export は使わない。
 - **`any` 禁止**。props は `interface <Name>Props` で型を書く。three.js の型は `three` から import する。
-- **import は `src/` 起点のパス**（`tsconfig.json` の `paths` で `./src/*` に解決）。例: `import { setTarget } from "redux/slices/editObjSlice";`。`../` の相対パスは使わない。
+- **import は `src/` 起点のパス**（`tsconfig.json` の `paths` で `./src/*` に解決）。例: `import { useSelector } from "redux/store";`。`../` の相対パスは使わない。
 - **CSS ファイルは作らない**。見た目は MUI で付ける。
 - **コメントは日本語**。コンポーネントの役割を JSDoc（`/** ... */`）で1〜3行書く。
 - `useSelector`・`useDispatch` は `react-redux` から直接ではなく、`redux/store` から export されている型付きのものを使う。
@@ -34,64 +34,56 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(pnpm --dir app exec eslint:*)
 
 ## 3. 3D（R3F）コンポーネント
 
-```tsx
-import { ThreeEvent, useFrame } from "@react-three/fiber";
-import { useCursor } from "@react-three/drei";
-import { useRef, useState } from "react";
-import { Mesh, Vector3 } from "three";
-import { setTarget } from "redux/slices/editObjSlice";
-import { useDispatch } from "redux/store";
+このスキルで作る 3D 部品は、エディタ側の表示（ヘルパー、マーカーなど）や、シーンデータの描画（`components/webGl/sceneView/`）から使われる部品にする。**シーンに置く物（エンティティ）は部品を個別に作らず、シーンデータ（初期データはコアの `core/scene/devScene.ts`）に足す**。`components/webGl/sceneView/` の `SceneView`・`EntityView` がデータから描画する。
 
-interface SampleSphereProps {
-  position?: Vector3 | [number, number, number];
-  radius?: number;
+```tsx
+import { useFrame } from "@react-three/fiber";
+import { useRef } from "react";
+import type { Mesh } from "three";
+import { noRaycast } from "components/webGl/noRaycast";
+
+interface SpinningMarkerProps {
+  position?: [number, number, number];
+  size?: number;
+  /** 1 秒あたりの回転量（ラジアン） */
+  speed?: number;
 }
 
 /**
- * クリックで選択できる、上下にゆれる球体
+ * 指定した位置で回り続ける目印。クリックの対象にはしない
  */
-export const SampleSphere = ({
-  position = [0, 1, 0],
-  radius = 0.5,
-}: SampleSphereProps) => {
-  const dispatch = useDispatch();
+export const SpinningMarker = ({
+  position = [0, 0.5, 0],
+  size = 0.3,
+  speed = Math.PI / 2,
+}: SpinningMarkerProps) => {
   const meshRef = useRef<Mesh>(null);
-  const [hovered, setHovered] = useState(false);
-  useCursor(hovered);
 
-  useFrame((state) => {
+  useFrame((_state, delta) => {
     if (!meshRef.current) return;
-    meshRef.current.position.y = 1 + Math.sin(state.clock.elapsedTime) * 0.2;
+    meshRef.current.rotation.y += speed * delta;
   });
 
-  const onClick = (e: ThreeEvent<MouseEvent>) => {
-    e.stopPropagation();
-    dispatch(setTarget(e.object));
-  };
-
   return (
-    <mesh
-      ref={meshRef}
-      position={position}
-      onClick={onClick}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-      castShadow
-    >
-      <sphereGeometry args={[radius]} />
-      <meshStandardMaterial color={hovered ? "orange" : "white"} />
+    <mesh ref={meshRef} position={position} raycast={noRaycast}>
+      <octahedronGeometry args={[size]} />
+      <meshBasicMaterial color="orange" wireframe />
     </mesh>
   );
 };
 ```
 
-- **選択（クリックで編集対象にする）**: `setTarget(e.object)` を dispatch すると、シーン側の `<TransformControls>` がその物体に付く。`e.stopPropagation()` で後ろの物体まで反応しないようにする。何もない所のクリックで選択解除する処理は `EditorCanvas` にすでにある。
+- **選択（クリックで編集対象にする）**: 選択の流れはシーンデータの描画にすでにある。部品の中で `setTarget` を dispatch しない。
+  - `EntityView` が選べるエンティティの根の `group` に `onClick` を付け、`e.stopPropagation()` してから `onSelect(entity, root)` を呼ぶ（渡すのは根の `Object3D` で、子のメッシュではない）
+  - どのエンティティを選べるかは `SceneView` の `isSelectable` で受け取り、`scenesGl/SceneDev.tsx` が判定する。`onSelect` を受けた `SceneDev` が `setTarget(root)` を dispatch し、`<TransformControls>` がその根に付く
+  - 何もない所（ハンドラを持たない物を含む）のクリックは `EditorCanvas` の `onPointerMissed` で選択を解除する
+  - 選べる物を増やしたいときは、部品を作らず、シーンデータへのエンティティの追加と `SceneDev` の `isSelectable` の変更が必要になる。どちらも既存ファイルの変更なので、報告でその旨を伝える。`sceneView/` の部品は特定のエンティティの ID を参照しない（選べるかどうかなどの判断は props で受け取る）
 - **選択以外のクリック**（クリック位置の取得など）: `setTarget` は dispatch しない。位置は `e.point`（ワールド座標）で取れる。
-- **既存の物体のクリックに反応したい**とき（例：地面をクリックしたら〜）: 既存ファイルは変更しないので、対象を `children` として受け取り `<group onClick={...}>{children}</group>` で包む形にする。部品が自分で描画するマーカーなどは、`components/webGl/noRaycast` の `noRaycast` を `raycast={noRaycast}` で渡して（`import { noRaycast } from "components/webGl/noRaycast";`）、クリックを横取りしないようにする。
+- **既存の物体のクリックに反応したい**とき（例：地面をクリックしたら〜）: 既存ファイルは変更しないので、対象を `children` として受け取り `<group onClick={...}>{children}</group>` で包む形にする。包んだ物はクリックの対象になり、クリックしても `onPointerMissed` による選択解除が起きなくなるので、報告でその旨を伝える。部品が自分で描画するマーカーなどをハンドラ付きの `group` の内側に置くときは、`raycast={noRaycast}` を渡してクリックを横取りしないようにする（ハンドラを持つ物の子孫は raycast の対象になるため）。
 - **毎フレームの処理**は `useFrame` に書き、移動・回転量には `delta` を掛ける（フレームレートに依存させないため）。`useFrame` 内で `new Vector3()` などを毎回作らず、`useRef` や外側の定数で使い回す。
 - **キー入力**は `useKeyboardControls`。キー名は `config/keyConfig.ts` の `Controls`。`<KeyboardControls>` の内側でしか動かないことを JSDoc に書く。
 - **影**: 落とす物体は `castShadow`、受ける物体は `receiveShadow`。
-- **モデル読み込み**: glTF は `app/public/` のファイルを `` `${import.meta.env.BASE_URL}xxx.glb` `` で読む（GitHub Pages ではサブパスで公開するため、`/xxx.glb` だと 404 になる）。MMD（.pmd/.pmx/.vmd）は `new URL("../assets/...", import.meta.url).href` で URL を作る（相対パス文字列だと開発サーバーが HTML の 404 を返し、`MMDLoader` が壊れたデータとして読むため）。
+- **モデル読み込み**: glTF も MMD（.pmd/.pmx/.vmd）も `app/public/` に置き、`import.meta.env.BASE_URL` を基準にした URL で読む（GitHub Pages ではサブパスで公開するため、`/xxx.glb` だと 404 になる）。`BASE_URL` は自分で連結せず、`components/webGl/sceneView/resolvePublicUrl` の `resolvePublicUrl` に `public/` からの相対パス（例: `miku/miku_v2.pmd`）を渡す。パスを間違えると開発サーバーが HTML を返し、`MMDLoader` が壊れたデータとして読むので注意する。シーンに置くモデルは部品を作らず、シーンデータ（`core/scene/devScene.ts`）に `model` コンポーネントとして足せば `SceneView` が描画する。
 - 何も描画しない制御用の部品は `return null` でよい。
 
 ## 4. UI（MUI）コンポーネント
@@ -141,7 +133,7 @@ export const SidePanel = ({ title }: SidePanelProps) => {
 
 ## 5. 作ったファイルだけを確認する
 
-プロジェクトには以前からある lint／型エラー（`SceneDev.tsx`、`GltfModel.tsx`、`MMDModel.tsx` など）が残っている。**作ったファイル以外のエラーはすべて範囲外**なので直さない。
+プロジェクトに以前からある lint／型エラーが残っていることがある。**作ったファイル以外のエラーはすべて範囲外**なので直さない。
 
 1. lint（作ったファイルをすべて指定）:
    ```shell
@@ -151,16 +143,19 @@ export const SidePanel = ({ title }: SidePanelProps) => {
    ```shell
    pnpm --dir app exec tsc -b
    ```
-   既存エラーのため**終了コードは常に 1** になる。終了コードではなく、出力に作ったファイル名の行があるかで判断する。
-3. 作ったファイルにエラーがあれば直して再実行する。
-
-Prettier はまだプロジェクトに入っていないので、整形の確認は ESLint だけでよい。
+   既存エラーがあると終了コードが 1 になるので、終了コードではなく、出力に作ったファイル名の行があるかで判断する。
+3. 整形の確認（作ったファイルをすべて指定）:
+   ```shell
+   pnpm --dir app exec prettier --check src/components/SidePanel.tsx src/styles/components/StyledSidePanel.tsx
+   ```
+   差分があれば `--check` を `--write` に替えて整形する。`app/` の `pnpm run format`・`pnpm run format:check` はプロジェクト全体が対象になるので、ここでは使わない。
+4. 作ったファイルにエラーや整形の差分があれば直して再実行する。
 
 ## 6. 報告
 
 - 作ったファイル（リンク付き）と、3D／UI のどちらとして作ったか
 - props の一覧（名前・型・デフォルト値）
 - 自分で決めた解釈（座標の種類、地面の扱い方など）と、似た既存部品があればその旨
-- 使い方の例（数行の JSX）。3D なら `scenesGl/SceneDev.tsx`、UI なら `pages/Home.tsx` に置く想定。UI を Canvas の上に重ねる場合は `position: "absolute"` の `Box` で包む例にする
+- 使い方の例（数行の JSX）。3D なら `scenesGl/SceneDev.tsx`（エディタ側の表示として置く部品）、UI なら `pages/Home.tsx` に置く想定。UI を Canvas の上に重ねる場合は `position: "absolute"` の `Box` で包む例にする
 - **動作確認に必要な前提が今のシーンにないとき**はその旨（例：選択できる物体がシーンにないので、パネルは常に「未選択」になる）
-- lint と型チェックの結果（作ったファイルにエラーがないこと）
+- lint・型チェック・整形の確認の結果（作ったファイルにエラーや差分がないこと）

@@ -21,13 +21,26 @@ export type MeshComponent = {
   receiveShadow: boolean;
 };
 
-/** 外部ファイルから読み込むモデル */
-export type ModelComponent = {
+/** glTF（.gltf/.glb）のモデル。アニメーションはまだ扱わない */
+export type GltfModelComponent = {
   type: "model";
   format: "gltf";
   /** public/ からの相対パス（先頭に / を付けない）。描画層で BASE_URL を前に付ける。フェーズ 4 でアセット ID に置き換える */
   url: string;
 };
+
+/** MMD（.pmd/.pmx）のモデル。テクスチャはモデルと同じフォルダから読む */
+export type MmdModelComponent = {
+  type: "model";
+  format: "mmd";
+  /** public/ からの相対パス（先頭に / を付けない）。描画層で BASE_URL を前に付ける */
+  url: string;
+  /** モーション（.vmd）の public/ からの相対パス。モーションがなければ null */
+  motionUrl: string | null;
+};
+
+/** 外部ファイルから読み込むモデル。format で判別する */
+export type ModelComponent = GltfModelComponent | MmdModelComponent;
 
 /** ディレクショナルライト。向きは位置から原点（three の既定の target）へ向かう。Transform の回転とスケールは使わない */
 export type DirectionalLightComponent = {

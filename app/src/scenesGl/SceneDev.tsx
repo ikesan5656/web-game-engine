@@ -3,54 +3,52 @@
  */
 
 import { TransformControls } from "@react-three/drei";
+import { useCallback } from "react";
+import type { Object3D } from "three";
 import { CameraControl } from "components/webGl/CameraControl";
-import { DirectionalLightCustom } from "components/webGl/DirectionalLightCustom";
 import { EditorGrid } from "components/webGl/EditorGrid";
-import GltfModel from "components/webGl/GltfModel";
-//import { ThreeBox } from "components/webGl/ThreeBox";
+import { SceneView } from "components/webGl/sceneView/SceneView";
 import { ThreeGizmo } from "components/webGl/ThreeGizmo";
-//import { useRef } from "react";
-import { useSelector } from "redux/store";
-//import { Vector3 } from "three";
+import { devSceneIds } from "core/scene/devScene";
+import { findComponent, type Entity } from "core/scene/entity";
+import { setTarget } from "redux/slices/editObjSlice";
+import { useDispatch, useSelector } from "redux/store";
 
-//const defaultPos = new Vector3(0, 1, 0);
+/**
+ * クリックで選べるエンティティか。選択と移動を確かめるための暫定で、mesh を持つもの（床を除く）だけを選べる。
+ * どれを選べるようにするかは、シーンビューのクリックでの選択（フェーズ 2）で決める
+ */
+const isSelectable = (entity: Entity) =>
+  findComponent(entity, "mesh") !== undefined &&
+  entity.id !== devSceneIds.floor;
 
 export const SceneDev = () => {
+  const dispatch = useDispatch();
   const target = useSelector((state) => state.editObj.target);
   const gridVisible = useSelector((state) => state.editorView.gridVisible);
-  //const positionTest = useRef(defaultPos);
+  const entities = useSelector((state) => state.scene.entities);
 
-  // Vite: resolve asset URL so dev server returns the actual binary file,
-  // otherwise a relative path may return an HTML 404 page which MMDLoader
-  // will interpret incorrectly (e.g. starting with "<!d").
-  /*const mikuModelUrl = new URL("../assets/miku/miku_v2.pmd", import.meta.url)
-    .href;
-  const mikuVmdUrl = new URL(
-    "../assets/miku/vmds/wavefile_v2.vmd",
-    import.meta.url
-  ).href;*/
+  // 暫定で Object3D を選択として持つ。選択の ID 化で置き換える
+  const onSelect = useCallback(
+    (_entity: Entity, root: Object3D) => {
+      dispatch(setTarget(root));
+    },
+    [dispatch]
+  );
 
   return (
     <group>
       <CameraControl initialPosition={[0, 7, 8]} />
-      <DirectionalLightCustom />
       <ThreeGizmo />
       {gridVisible && <EditorGrid />}
 
       {target && <TransformControls object={target} mode={"translate"} />}
-      {/*<ThreeBox position={positionTest.current} />*/}
 
-      <mesh rotation-x={-Math.PI / 2} receiveShadow>
-        <circleGeometry args={[10]} />
-        <meshStandardMaterial />
-      </mesh>
-      <GltfModel />
-      {/*<MMDModel modelPath={mikuModelUrl} motionPath={mikuVmdUrl} scale={0.3} />*/}
-      {/*<MMDModelWithAnim
-        modelPath={mikuModelUrl}
-        vmdPath={mikuVmdUrl}
-        scale={0.3}
-      />*/}
+      <SceneView
+        entities={entities}
+        isSelectable={isSelectable}
+        onSelect={onSelect}
+      />
     </group>
   );
 };

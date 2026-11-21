@@ -4,11 +4,8 @@ import useResizeObserver from "../hooks/useResizeObserver";
 import { KeyboardControls } from "@react-three/drei";
 import { SceneDev } from "scenesGl/SceneDev";
 import { keyConfigs } from "config/keyConfig";
-import { useDispatch } from "react-redux";
+import { useDispatch } from "redux/store";
 import { setTarget } from "redux/slices/editObjSlice";
-/*import miku from "assets/miku/miku_v2.pmd";
-import vmd from "assets/miku/vmds/wavefile_v2.vmd";
-import { MMDModelWithAnim } from "components/webGl/MMDModelWithAnim";*/
 
 const EditorContainer = styled("div")({
   height: "100%",

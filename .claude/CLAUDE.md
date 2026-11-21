@@ -54,11 +54,12 @@ Issue 対応は `/issue` スキルの流れ（① 要件定義 `doc-reviewer` �
 
 入口: `app/src/main.tsx` → `pages/Home` → `container/EditorCanvas`（R3F の `<Canvas>`）→ `scenesGl/SceneDev`
 
-- `scenesGl/`: シーンの構成（現状は開発用シーンのみ）
+- `scenesGl/`: シーンの構成（現状は開発用シーンのみ）。シーンデータの描画と、エディタ側の表示（カメラ操作、ギズモ、グリッド、`TransformControls`）を組み合わせる
 - `components/webGl/`: 再利用する R3F 部品（カメラ操作、ライト、モデルなど）
+- `components/webGl/sceneView/`: シーンデータ（エンティティの配列）の描画
 - `components/`・`styles/components/`: MUI の UI 部品
-- `redux/`: エディタの状態
-- `core/`: シーンデータの型など。`three`・`react`・`redux` に依存しない純粋な TypeScript
+- `redux/`: エディタの状態とシーンデータ（`scene` slice）
+- `core/`: シーンデータの型と初期データ（`core/scene/devScene.ts`）など。`three`・`react`・`redux` に依存しない純粋な TypeScript
 
 設計の詳しい説明、各方針の理由、移行計画は `docs/architecture.md` にある。設計に関わる変更をするときは先に読むこと。
 
@@ -77,5 +78,4 @@ Ports and Adapters（ヘキサゴナルアーキテクチャ）を参考にし�
 
 移行前の暫定実装が残っている。既存の挙動を保つタスクであればそのまま使ってよいが、新しいコードでは同じ書き方を広げないこと。
 
-- `redux/slices/editObjSlice.ts` が `Object3D` を `editObj.target` に直接保持している
-- シーンのオブジェクト配置は、データではなく `SceneDev` に直接書かれている
+- `redux/slices/editObjSlice.ts` が `Object3D` を `editObj.target` に直接保持している（`redux/store.ts` の middleware でこのパスを immutableCheck・serializableCheck から外している。新しい state をこの除外に足さないこと）
