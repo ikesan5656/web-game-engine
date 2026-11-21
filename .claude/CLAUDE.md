@@ -38,6 +38,14 @@ TypeScript は 7 系を使う。typescript-eslint が TS7 に未対応のため�
 
 Issue 対応は `/issue` スキルの流れ（① 要件定義 `doc-reviewer` → ② 設計 `planner` → ③ 実装 `implementer`・`doc-writer` → ④ レビュー `code-reviewer`・`quality-checker` → ⑤ 動作確認 → PR 作成）に従う。新規 Issue は、ユーザーが要件を了承してから起票する。各工程の終わりにユーザーの了承を取り、進捗は Issue の工程ごとのコメントと本文最上部のステータス欄に記録する。サブ Issue が完了として閉じられたり開き直されたりすると、GitHub Actions（`.github/workflows/update-parent-issue.yml`）が、親 Issue の本文のチェックリストで行末に子の番号だけが並ぶ項目を、すべて完了なら `[x]`、そうでなければ `[ ]` に合わせる。番号の書き方と注意点は `/issue` スキルの「B. 新規起票」を参照。
 
+サブエージェントは、報告を要点のみにし、最後に「ユーザーの判断が必要な点」の見出しを設けて書く（`quality-checker` は対象外）。対象は次のもの。各項目に選択肢・推奨案・理由を短く添え、簡潔さより優先して省略しない。なければ「なし」と書く。
+
+- 複数案があり選択が必要なもの
+- 要件・設計にない判断や、要件・設計から外れるもの
+- 既存の挙動や設計方針に影響するもの
+
+メインは、報告を受けたら次の工程や再依頼に進む前に、この項目を削らず、選択肢・推奨案・理由を保ったままユーザーに提示する。選択が必要なものは AskUserQuestion で示す（`/issue` スキルの「判断が必要なとき」と同じ形）。
+
 ドキュメント（`*.md`、`docs/`、`.claude/` 配下など）の作成・更新は、メインや `implementer` では行わず `doc-writer` に任せる。コードの変更もあるときは、`implementer` と `doc-writer` を**並行して**起動する。
 
 `implementer`・`doc-writer` の作業が終わったら、`code-reviewer` と `quality-checker` を**並行して**起動し、両方が報告した変更ファイルの一覧を渡す。ドキュメント（`*.md`、`docs/`、`.claude/` 配下など）を変更していれば、`doc-reviewer` も同時に必ず起動する（コードを変更していなければ `doc-reviewer` だけを起動する）。
