@@ -72,7 +72,8 @@ UI（MUI） ─┐
 ## 状態管理の使い分け
 
 - **シーンデータ**: Redux の `scene` slice（`app/src/redux/slices/sceneSlice.ts`）に置く。型と初期データ（`createDevScene()`）はコアに置き、エディタ層の slice からコアへ一方向に import する。state の配列やオブジェクトは immer に凍結されるので、reducer の外で書き換えない。変更は reducer（のちにコマンド）を通して行う。
-- **エディタの操作（選択、追加、削除、プロパティの編集）**: Redux で管理する。ドラッグ中のように頻繁に起きる更新は、確定時（ドラッグ終了時など）にだけ dispatch する。
+- **エディタの操作（選択、追加、削除、プロパティの編集）**: Redux で管理する。ドラッグ中のように頻繁に起きる更新は、確定時（ドラッグ終了時など）にだけ dispatch する。選択は `selection` slice（`app/src/redux/slices/selectionSlice.ts`）にエンティティ ID で持つ。
+- **`Object3D` への参照**: state には持たず、描画層のレジストリ（`components/webGl/sceneView/entityObjectRegistry.ts`）で ID から引く。
 - **エディタの表示設定（グリッドの表示・非表示など）**: エディタ状態として Redux（`editorView` slice、`app/src/redux/slices/editorViewSlice.ts`）で管理する。シーンのデータではなく、シーンの保存や Undo の対象にもしないので、コア（`app/src/core/`）には置かない。
 - **毎フレーム変わる値（ゲーム実行中の位置や速度など）**: React の state を通さず、`useFrame` の中で ref や ECS のデータを直接書き換える。毎フレーム再レンダリングが走ると、すぐに重くなる。
 
@@ -108,18 +109,21 @@ R3F 周辺では、React の外から `getState()` で読み書きできてゲ�
 ## 現状
 
 - シーンの配置はデータで持っている。初期データはコアの `core/scene/devScene.ts`（`createDevScene()`）にあり、Redux の `scene` slice がそれを `initialState` として持つ。`scenesGl/SceneDev.tsx` が `scene` slice のエンティティを `components/webGl/sceneView/` の `SceneView` に渡して描画する。エディタ側の表示（カメラ操作、ギズモ、グリッド、`TransformControls`）は `SceneDev` に置き、ライトのヘルパーと太陽のテクスチャはライトの描画部品が持つ。
-- 選択はまだ `Object3D` で持っている。`app/src/redux/slices/editObjSlice.ts` が、選択中の `Object3D` を `editObj.target` として直接保持している。`SceneDev` が選べるエンティティ（暫定で、`mesh` を持ち床でないもの）を決め、そのエンティティの根の `Object3D` を `setTarget(...)` で dispatch し、そのターゲットに drei の `<TransformControls>` を付けている。
-  - `TransformControls` で動かした位置はシーンデータに書き戻されない。データが変わらない限り Transform を再適用しないので、再描画で元の位置に戻ることはない。
+- 選択はエンティティ ID で持っている。Redux の `selection` slice（`app/src/redux/slices/selectionSlice.ts`）が、選択中のエンティティを `selectedEntityId`（`EntityId | null`、未選択は `null`）として持つ。`SceneDev` が選べるエンティティ（暫定で、`mesh` を持ち床でないもの）を決め、クリックされたエンティティの ID を `selectEntity(id)` で dispatch する。何もない所のクリックでは、`EditorCanvas` の `onPointerMissed` が `clearSelection()` を dispatch する。
+  - ID から根の `Object3D` を引く仕組みは、Redux の外の描画層に置いている（`components/webGl/sceneView/entityObjectRegistry.ts` のレジストリと、`EntityObjectRegistryProvider`）。`EntityObjectRegistryProvider` は `EditorCanvas` の `<Canvas>` 内で `SceneDev` を包む固定の位置に置いている。`EntityView` がマウント後（`useEffect`）に根の `group` を自分の ID で登録し、アンマウント時や ID が変わったときに登録を外す。登録はコミットの後なので、最初の描画では `useEntityObject` が `undefined` を返すことがある。`SceneDev` は選択中の ID から `useEntityObject(id)` で根の `Object3D` を引き、drei の `<TransformControls>` に渡す。引けないとき（未選択、まだ描画されていないなど）は `TransformControls` を出さない。`useEntityObject` は `useSyncExternalStore` でレジストリの変更を購読するので、登録や解除に表示が追従する。
+  - `SceneView`・`EntityView` は `memo` で包んでいる。選択の変更やグリッドの切り替えで `SceneDev` が再描画されても、props が変わらなければ `SceneView` 以下は再描画されない。そのため `SceneDev` は `onSelect` を `useCallback` で固定し、`isSelectable` をコンポーネントの外に置いている。
+  - `TransformControls` で動かした位置はシーンデータに書き戻されない。データが変わらない限り Transform を再適用しないので、再描画で元の位置に戻ることはない。選択を解除しても登録は残るので、選び直すと登録済みの同じ `group` に、動かした位置のまま `TransformControls` が付く。
   - 選べるエンティティの条件は、選択と移動を確かめるための暫定。どのエンティティをクリックで選べるようにするかは、親 Issue #7 のフェーズ 2（シーンビューのクリックでの選択）で決める。R3F はイベントハンドラを持つ物とその子孫だけを raycast の対象にするので、今はハンドラを持たない手前のモデルが奥の立方体へのクリックを遮らない。モデルを選べるようにすると手前のモデルが先にヒットするようになるため、この点もフェーズ 2 の選択の設計で扱う。
-  - `editObj.target` の `Object3D` は `TransformControls` などに書き換えられ、開発時に RTK の immutableCheck が例外を投げるため、`app/src/redux/store.ts` の middleware で `editObj.target` を immutableCheck と serializableCheck の対象から外している（`ignoredActions` には `setTarget.type` を使う）。暫定の設定で、選択を ID ベースにするときに取り除く。
+  - 以前は選択中の `Object3D` を Redux（`editObj.target`）に持ち、`app/src/redux/store.ts` の middleware でそのパスを immutableCheck と serializableCheck の対象から外していた。選択を ID ベースにしたときに、この除外は取り除いた（middleware は既定のまま）。
+  - 選択中のエンティティが削除されたときに選択を解除する処理はまだない（今は削除の操作がない）。削除コマンドを実装するときに扱う。
 
 ## 移行計画
 
 プロトタイプなので段階的に進める。1〜3 は親 Issue #7 のフェーズ 1 に当たる。
 
 1. **シーンをデータで持つ**（済み）: コアにシーンデータの型を定義し、`SceneDev` の配置をそのデータに移して、データから描画する。シーンデータは `{ id, name, transform, components }` のエンティティの配列（`SceneData.entities`）で、モデルは当面 URL で参照する。
-2. **選択を ID ベースにする**: `editObj.target` を `Object3D` から `EntityId` に変える。`store.ts` で `editObj.target` を immutableCheck・serializableCheck から外している設定もここで取り除く。
+2. **選択を ID ベースにする**（済み）: 選択を `Object3D` から `EntityId` に変える（`editObj.target` を `selection` slice の `selectedEntityId` に置き換える）。`TransformControls` に渡す `Object3D` は、描画層のレジストリで ID から引く。`store.ts` で `editObj.target` を immutableCheck・serializableCheck から外していた設定も取り除く。
 3. **編集操作をコマンドにする**: 「移動」「追加」などをコマンドオブジェクトにし、Undo/Redo に対応する。`TransformControls` での操作結果は、確定時に移動コマンドとしてデータへ書き戻す。
 4. **ゲームロジックが増えたら ECS を入れる**: 候補は koota（pmndrs）、miniplex、bitecs。1〜3 ができていれば、データ構造を移すだけで済む。
 
-1 と 2 だけでも、保存と読み込み、インスペクタ、Undo の土台ができる。
+1 と 2 で、保存と読み込み、インスペクタ、Undo の土台ができた。

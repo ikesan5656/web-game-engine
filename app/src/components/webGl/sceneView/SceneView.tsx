@@ -1,19 +1,22 @@
+import { memo } from "react";
 import type { Entity } from "core/scene/entity";
+import type { EntityId } from "core/scene/entityId";
 import { EntityView } from "components/webGl/sceneView/EntityView";
-import type { Object3D } from "three";
 
 interface SceneViewProps {
   entities: Entity[];
-  /** クリックで選べるエンティティか */
+  /** クリックで選べるエンティティか。memo を効かせるため、参照を固定する（コンポーネントの外で定義するなど） */
   isSelectable: (entity: Entity) => boolean;
-  /** 選べるエンティティがクリックされたときに、エンティティと根の Object3D を受け取る */
-  onSelect: (entity: Entity, root: Object3D) => void;
+  /** 選べるエンティティがクリックされたときに、エンティティの ID を受け取る。memo を効かせるため、useCallback などで参照を固定する */
+  onSelect: (id: EntityId) => void;
 }
 
 /**
- * シーンデータのエンティティを描画する。エンティティの順序や数が変わっても、ID ごとに描画を保つ
+ * シーンデータのエンティティを描画する。エンティティの順序や数が変わっても、ID ごとに描画を保つ。
+ * memo で包み、props が変わらなければ（選択の変更などで親が再描画されても）再描画しない。
+ * EntityObjectRegistryProvider の内側で描画すること
  */
-export const SceneView = (props: SceneViewProps) => {
+export const SceneView = memo(function SceneView(props: SceneViewProps) {
   const { entities, isSelectable, onSelect } = props;
 
   return (
@@ -28,4 +31,4 @@ export const SceneView = (props: SceneViewProps) => {
       ))}
     </>
   );
-};
+});

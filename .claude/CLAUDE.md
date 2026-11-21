@@ -56,9 +56,9 @@ Issue 対応は `/issue` スキルの流れ（① 要件定義 `doc-reviewer` �
 
 - `scenesGl/`: シーンの構成（現状は開発用シーンのみ）。シーンデータの描画と、エディタ側の表示（カメラ操作、ギズモ、グリッド、`TransformControls`）を組み合わせる
 - `components/webGl/`: 再利用する R3F 部品（カメラ操作、ライト、モデルなど）
-- `components/webGl/sceneView/`: シーンデータ（エンティティの配列）の描画
+- `components/webGl/sceneView/`: シーンデータ（エンティティの配列）の描画と、ID から根の `Object3D` を引くレジストリ（`entityObjectRegistry.ts`・`EntityObjectRegistryProvider`）
 - `components/`・`styles/components/`: MUI の UI 部品
-- `redux/`: エディタの状態とシーンデータ（`scene` slice）
+- `redux/`: エディタの状態（選択の `selection` slice など）とシーンデータ（`scene` slice）
 - `core/`: シーンデータの型と初期データ（`core/scene/devScene.ts`）など。`three`・`react`・`redux` に依存しない純粋な TypeScript
 
 設計の詳しい説明、各方針の理由、移行計画は `docs/architecture.md` にある。設計に関わる変更をするときは先に読むこと。
@@ -76,6 +76,6 @@ Ports and Adapters（ヘキサゴナルアーキテクチャ）を参考にし�
 
 ### 現状と方針の差
 
-移行前の暫定実装が残っている。既存の挙動を保つタスクであればそのまま使ってよいが、新しいコードでは同じ書き方を広げないこと。
+移行前の暫定実装で、設計方針と食い違うものを挙げる。ほかに見つけたり、やむを得ず加えたりしたときはここに書く。既存の挙動を保つタスクであればそのまま使ってよいが、新しいコードでは同じ書き方を広げないこと。
 
-- `redux/slices/editObjSlice.ts` が `Object3D` を `editObj.target` に直接保持している（`redux/store.ts` の middleware でこのパスを immutableCheck・serializableCheck から外している。新しい state をこの除外に足さないこと）
+- `TransformControls` で動かした位置は `Object3D` にだけ反映され、シーンデータに書き戻されない（`docs/architecture.md` の移行計画 3 のコマンド化で解消する）。新しいコードで、`Object3D` の位置を正として読む書き方を広げないこと

@@ -73,12 +73,13 @@ export const SpinningMarker = ({
 };
 ```
 
-- **選択（クリックで編集対象にする）**: 選択の流れはシーンデータの描画にすでにある。部品の中で `setTarget` を dispatch しない。
-  - `EntityView` が選べるエンティティの根の `group` に `onClick` を付け、`e.stopPropagation()` してから `onSelect(entity, root)` を呼ぶ（渡すのは根の `Object3D` で、子のメッシュではない）
-  - どのエンティティを選べるかは `SceneView` の `isSelectable` で受け取り、`scenesGl/SceneDev.tsx` が判定する。`onSelect` を受けた `SceneDev` が `setTarget(root)` を dispatch し、`<TransformControls>` がその根に付く
-  - 何もない所（ハンドラを持たない物を含む）のクリックは `EditorCanvas` の `onPointerMissed` で選択を解除する
+- **選択（クリックで編集対象にする）**: 選択の流れはシーンデータの描画にすでにある。部品の中で `selectEntity`・`clearSelection` を dispatch しない。
+  - `EntityView` が選べるエンティティの根の `group` に `onClick` を付け、`e.stopPropagation()` してから `onSelect(entity.id)` を呼ぶ（渡すのはエンティティの ID で、`Object3D` は渡さない）
+  - どのエンティティを選べるかは `SceneView` の `isSelectable` で受け取り、`scenesGl/SceneDev.tsx` が判定する。`onSelect` を受けた `SceneDev` が `selectEntity(id)` を dispatch し、選択中の ID から `useEntityObject` で引いた根の `Object3D` に `<TransformControls>` が付く
+  - 何もない所（ハンドラを持たない物を含む）のクリックは `EditorCanvas` の `onPointerMissed` で `clearSelection()` を dispatch して選択を解除する
+  - 選択中の物の `Object3D` が要る部品は、`useEntityObject(id)`（`components/webGl/sceneView/entityObjectRegistry.ts`）で引く。`Object3D` を Redux に入れない。`useEntityObject` は `Object3D` そのものが要る 3D のエディタ表示（`TransformControls`、ヘルパーなど）に限り、名前や位置などの値を読むためには使わない（値は ID で `scene` slice から読む。「4. UI（MUI）コンポーネント」の選択中のエンティティの情報の項目を参照）。`EntityObjectRegistryProvider` の内側（今は `SceneDev` 以下）でしか動かないことを JSDoc に書く
   - 選べる物を増やしたいときは、部品を作らず、シーンデータへのエンティティの追加と `SceneDev` の `isSelectable` の変更が必要になる。どちらも既存ファイルの変更なので、報告でその旨を伝える。`sceneView/` の部品は特定のエンティティの ID を参照しない（選べるかどうかなどの判断は props で受け取る）
-- **選択以外のクリック**（クリック位置の取得など）: `setTarget` は dispatch しない。位置は `e.point`（ワールド座標）で取れる。
+- **選択以外のクリック**（クリック位置の取得など）: `selectEntity` は dispatch しない。位置は `e.point`（ワールド座標）で取れる。
 - **既存の物体のクリックに反応したい**とき（例：地面をクリックしたら〜）: 既存ファイルは変更しないので、対象を `children` として受け取り `<group onClick={...}>{children}</group>` で包む形にする。包んだ物はクリックの対象になり、クリックしても `onPointerMissed` による選択解除が起きなくなるので、報告でその旨を伝える。部品が自分で描画するマーカーなどをハンドラ付きの `group` の内側に置くときは、`raycast={noRaycast}` を渡してクリックを横取りしないようにする（ハンドラを持つ物の子孫は raycast の対象になるため）。
 - **毎フレームの処理**は `useFrame` に書き、移動・回転量には `delta` を掛ける（フレームレートに依存させないため）。`useFrame` 内で `new Vector3()` などを毎回作らず、`useRef` や外側の定数で使い回す。
 - **キー入力**は `useKeyboardControls`。キー名は `config/keyConfig.ts` の `Controls`。`<KeyboardControls>` の内側でしか動かないことを JSDoc に書く。
@@ -128,8 +129,8 @@ export const SidePanel = ({ title }: SidePanelProps) => {
 ```
 
 - ボタンや入力欄は MUI の部品（`Button`、`TextField`、`Typography` など）を使う。一度しか使わない小さな調整は `sx` でよい。
-- **three.js オブジェクトの状態を表示するときの注意**: Redux の `editObj.target` は `Object3D` そのものを持っている。`TransformControls` で動かしても同じインスタンスのままなので、`useSelector` だけでは位置などの表示が更新されない。UI 側（Canvas の外）では `useFrame` が使えないため、`useEffect` 内で `requestAnimationFrame` を回して値を読み、変わったときだけ `setState` する。
-- 選択中オブジェクトの `name` は空のことが多いので、空のときの表示（例：「(名前なし)」）を用意する。
+- **選択中のエンティティの情報を表示するときの注意**: 選択は Redux の `selection` slice に ID（`selectedEntityId`、未選択は `null`）で持っている。表示する値（名前、位置など）は、その ID で `scene` slice のエンティティから読むのが原則で、Canvas の外の UI から `Object3D` を直接読む書き方はしない（`useEntityObject` は `Object3D` そのものが要る 3D のエディタ表示のためのもので、値の読み取りには使わない）。ただし今は `TransformControls` で動かした位置がシーンデータに書き戻されない（編集操作をコマンドにするまで）ので、`scene` slice の位置は動かす前の値のままになる。位置を表示する部品を作るときは、報告でその旨を伝える。
+- 名前を表示するときはエンティティの `name`（`Entity.name`）を使う。空の場合に備えて、空のときの表示（例：「(名前なし)」）を用意する。
 
 ## 5. 作ったファイルだけを確認する
 
