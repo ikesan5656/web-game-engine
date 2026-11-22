@@ -17,6 +17,7 @@ import type { Vec3 } from "core/math/vec3";
 import type { EntityId } from "core/scene/entityId";
 import { beginTransformDrag, endTransformDrag } from "redux/commands";
 import { selectEntity } from "redux/slices/selectionSlice";
+import { selectIsTransformDragging } from "redux/slices/transformEditSlice";
 import { useDispatch, useSelector } from "redux/store";
 
 /**
@@ -27,6 +28,9 @@ import { useDispatch, useSelector } from "redux/store";
 const isSelectable = (entity: Entity) =>
   findComponent(entity, "mesh") !== undefined &&
   entity.id !== devSceneIds.floor;
+
+/** エディタカメラの初期位置（原点を向く）。再描画で参照が変わらないよう外に置く */
+const EDITOR_CAMERA_POSITION: Vec3 = [0, 7, 8];
 
 /** Object3D の位置を Vec3 にする（Vector3 は state に入れない） */
 const toVec3 = (object: Object3D): Vec3 => [
@@ -42,6 +46,8 @@ export const SceneDev = () => {
   );
   const gridVisible = useSelector((state) => state.editorView.gridVisible);
   const entities = useSelector((state) => state.scene.entities);
+  // ギズモのドラッグ中はカメラを動かさない
+  const isTransformDragging = useSelector(selectIsTransformDragging);
 
   // 選択中の ID に当たる根の Object3D。未選択や、まだ描画されていないときは undefined
   const selectedObject = useEntityObject(selectedEntityId);
@@ -77,7 +83,10 @@ export const SceneDev = () => {
 
   return (
     <group>
-      <CameraControl initialPosition={[0, 7, 8]} />
+      <CameraControl
+        initialPosition={EDITOR_CAMERA_POSITION}
+        enabled={!isTransformDragging}
+      />
       <ThreeGizmo />
       {gridVisible && <EditorGrid />}
 

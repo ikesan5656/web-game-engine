@@ -82,7 +82,7 @@ export const SpinningMarker = ({
 - **選択以外のクリック**（クリック位置の取得など）: `selectEntity` は dispatch しない。位置は `e.point`（ワールド座標）で取れる。
 - **既存の物体のクリックに反応したい**とき（例：地面をクリックしたら〜）: 既存ファイルは変更しないので、対象を `children` として受け取り `<group onClick={...}>{children}</group>` で包む形にする。包んだ物はクリックの対象になり、クリックしても `onPointerMissed` による選択解除が起きなくなるので、報告でその旨を伝える。部品が自分で描画するマーカーなどをハンドラ付きの `group` の内側に置くときは、`raycast={noRaycast}` を渡してクリックを横取りしないようにする（ハンドラを持つ物の子孫は raycast の対象になるため）。
 - **毎フレームの処理**は `useFrame` に書き、移動・回転量には `delta` を掛ける（フレームレートに依存させないため）。`useFrame` 内で `new Vector3()` などを毎回作らず、`useRef` や外側の定数で使い回す。
-- **キー入力**は `useKeyboardControls`。キー名は `config/keyConfig.ts` の `Controls`。`<KeyboardControls>` の内側でしか動かないことを JSDoc に書く。
+- **キー入力**は、drei の `KeyboardControls`・`useKeyboardControls` を使わず（`KeyboardControls` と `config/keyConfig.ts` は削除した）、部品の中で `window` の `keydown`・`keyup` を扱う。入力欄では `utils/isTextEditingElement.ts` の `isTextEditingElement` で除外し、blur などで押下状態をリセットする（詳細は `.claude/rules/webgl.md`）。
 - **影**: 落とす物体は `castShadow`、受ける物体は `receiveShadow`。
 - **モデル読み込み**: glTF も MMD（.pmd/.pmx/.vmd）も `app/public/` に置き、`import.meta.env.BASE_URL` を基準にした URL で読む（GitHub Pages ではサブパスで公開するため、`/xxx.glb` だと 404 になる）。`BASE_URL` は自分で連結せず、`components/webGl/sceneView/resolvePublicUrl` の `resolvePublicUrl` に `public/` からの相対パス（例: `miku/miku_v2.pmd`）を渡す。パスを間違えると開発サーバーが HTML を返し、`MMDLoader` が壊れたデータとして読むので注意する。シーンに置くモデルは部品を作らず、シーンデータ（`core/scene/devScene.ts`）に `model` コンポーネントとして足せば `SceneView` が描画する。
 - 何も描画しない制御用の部品は `return null` でよい。

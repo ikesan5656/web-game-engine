@@ -112,6 +112,20 @@ R3F 周辺では、React の外から `getState()` で読み書きできてゲ�
 ## 現状
 
 - シーンの配置はデータで持っている。初期データはコアの `core/scene/devScene.ts`（`createDevScene()`）にあり、Redux の `scene` slice がそれを `initialState` として持つ。`scenesGl/SceneDev.tsx` が `scene` slice のエンティティを `components/webGl/sceneView/` の `SceneView` に渡して描画する。エディタ側の表示（カメラ操作、ギズモ、グリッド、`TransformControls`）は `SceneDev` に置き、ライトのヘルパーと太陽のテクスチャはライトの描画部品が持つ。
+- エディタカメラは、drei の `CameraControls`・`OrbitControls` を使わず、ポインタイベントから自前で実装している（`components/webGl/CameraControl.tsx`、計算などは `components/webGl/editorCamera/` の `cameraGesture.ts`・`editorCameraRig.ts`・`useFlyKeys.ts`）。見回し・フライスルーとの組み合わせ、修飾キーでの操作の割り当て、ギズモより先に入力を取ることが理由。
+  - 状態は `yaw`・`pitch`・`distance` で持ち、注視点はカメラの位置に「前方向 × distance」を足して求める。見回しやフライスルーの後は、注視点が前方の同じ距離に移る。状態は Redux に持たない。毎フレーム変わる値なので、ref に持ち、イベントと `useFrame` の中で更新する。
+  - 操作の割り当ては次のとおり。対象のポインタは `mouse` と `pen` で、タッチは対象外。OS は判定しない。使う人向けの操作一覧は [editor-controls.md](./editor-controls.md) にあり、割り当てを変えたときは両方を更新する。
+    - 右ドラッグ: 見回し
+    - 中ドラッグ、Alt+(Cmd または Ctrl)+左ドラッグ: パン
+    - Alt+左ドラッグ: オービット
+    - ホイール、ピンチ: ドリー。最小距離まで近づいたら、注視点ごと前に押し出す。近くでも、一定量（距離 1 相当）は動く。1 イベントあたりの変化量には上限がある（`MAX_DOLLY_EXPONENT`。ホイールとピンチの両方で、Safari のジェスチャーのピンチも含む）
+  - 選択や `TransformControls` との排他は、R3F のラッパー要素（`events.connected`）の capture フェーズで実現している。カメラ操作のときは `pointerdown` を止め、`click`・`dblclick` は直前の `pointerdown` がカメラ操作だったときだけ止める。`contextmenu` は常に止める。ドラッグ中は `window` の capture で `pointermove`・`pointerup` も止め、ギズモのホバーと R3F に見せない。これらにより、R3F の `onClick`・`onPointerMissed` と `TransformControls` には届かない。あわせて、シーンビューで `pointerdown` すると、どのボタンでも入力欄のフォーカスを外す。
+  - フライスルーのキー（W/A/S/D/Q/E と Shift）は、右ボタンを押している間だけ有効で、その間は keydown をほかの処理（ギズモのショートカットなど）に渡さない。キー入力は `window` の `keydown`・`keyup` で扱い、入力欄では無視する。押下状態は、blur のほか、`visibilitychange`（非表示になったとき）、`pointercancel`、Meta キーの `keyup` でリセットする（Mac では Cmd を押している間はほかのキーの keyup が来ないため）。`KeyboardControls` と `config/keyConfig.ts` は削除した。
+  - props は次のとおり。`<Canvas>` の `camera` 指定は使わない。
+    - `initialPosition`: 初期位置。`SceneDev` から渡す。マウントしたとき（`camera` が変わったとき）だけ使い、後から変えても反映されない
+    - `initialPivot`: 初期の注視点。既定は原点。`initialPosition` と同じく、マウントしたとき（`camera` が変わったとき）だけ使い、後から変えても反映されない
+    - `enabled`: false のときは、新しいカメラ操作の開始と、ドリー（Safari のピンチを含む）を無視する。進行中のドラッグは止めない。false のときも、カメラ操作の `pointerdown`、`contextmenu`、`wheel`、ジェスチャーのイベントは止め続け、選択やページのスクロールに漏らさない。`SceneDev` は、ギズモのドラッグ中に false を渡す
+  - 今後の課題: カメラの状態は部品内の ref にあるため、F キーでのフォーカスや Play モードなど、外からカメラを動かすには、外から動かす口（ハンドルなど）を `CameraControl` に足す必要がある。方式は未定で、必要になった時点で決める。
 - 画面は Header の下に、Hierarchy・Scene・Inspector・Project の 4 つのパネルを CSS grid で並べている（`pages/Home.tsx`、`styles/components/StyledEditorLayout.tsx`）。左右のパネルの幅と Project の高さは固定で、Scene は残りの幅・高さに合わせて伸び縮みする。パネルの共通の枠は `components/EditorPanel.tsx` で、色は `styles/editorColors.ts` に置く。Scene 以外の中身は仮の表示で、後続の Issue で作る。`<Canvas>` は幅や高さを px で指定せず、R3F 標準の親要素への追従に任せて Scene パネルの大きさに合わせる。パネルの開閉や幅の変更はまだなく、パネルの状態は React の state にも Redux にも持たない。
 - 選択はエンティティ ID で持っている。Redux の `selection` slice（`app/src/redux/slices/selectionSlice.ts`）が、選択中のエンティティを `selectedEntityId`（`EntityId | null`、未選択は `null`）として持つ。`SceneDev` が選べるエンティティ（暫定で、`mesh` を持ち床でないもの）を決め、クリックされたエンティティの ID を `selectEntity(id)` で dispatch する。何もない所のクリックでは、`EditorCanvas` の `onPointerMissed` が `clearSelection()` を dispatch する。
   - ID から根の `Object3D` を引く仕組みは、Redux の外の描画層に置いている（`components/webGl/sceneView/entityObjectRegistry.ts` のレジストリと、`EntityObjectRegistryProvider`）。`EntityObjectRegistryProvider` は `EditorCanvas` の `<Canvas>` 内で `SceneDev` を包む固定の位置に置いている。`EntityView` がマウント後（`useEffect`）に根の `group` を自分の ID で登録し、アンマウント時や ID が変わったときに登録を外す。登録はコミットの後なので、最初の描画では `useEntityObject` が `undefined` を返すことがある。`SceneDev` は選択中の ID から `useEntityObject(id)` で根の `Object3D` を引き、drei の `<TransformControls>` に渡す。引けないとき（未選択、まだ描画されていないなど）は `TransformControls` を出さない。`useEntityObject` は `useSyncExternalStore` でレジストリの変更を購読するので、登録や解除に表示が追従する。選択を解除しても登録は残るので、選び直すと登録済みの同じ `group` に `TransformControls` が付く。
