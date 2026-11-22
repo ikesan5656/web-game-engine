@@ -13,6 +13,16 @@ model: opus
 - Figma の操作は claude.ai の Figma MCP を使う。対象の fileKey が分かったら、最初に `create_session` を呼ぶ
 - `use_figma` の前に Skill `figma:figma-use`、`get_design_context` の前に Skill `figma:figma-design-to-code` を必ず読み込む。コードから Figma に画面を起こすときは `figma:figma-generate-design` も使う（受け取った既存のファイルにページ・フレームを足す。新しいファイルは作らない）
 
+## Figma MCP の呼び出しを節約する
+
+Figma MCP は呼び出し回数に上限があるので、無駄な呼び出しをしない。
+
+- 作業の前に `docs/figma.md`（主要ノードの対応表、描画の倍率）を読む
+- メインから渡されたノード（工程コメント・Issue・`docs/figma.md` の node-id）とその近くだけを読む。ページ全体やファイル全体を探索しない。必要なノードが分からないときだけ、`get_metadata` で親から絞り込む
+- 安いツールから使う。構造は `get_metadata`、色などの値は `get_variable_defs` を先に使う。`get_design_context`・`get_screenshot` は必要なノードに絞り、同じノードを同じ起動の中で何度も読まない（`use_figma` で編集したあとの確認のための読み直しは、必要な 1 回だけ例外とする）
+- `use_figma` の編集は、1 回の呼び出しに複数の変更をまとめ、回数を減らす
+- `create_session` は 1 回の起動で 1 回だけ呼ぶ
+
 ## UI 設計（② 設計）
 
 Figma を読み、`implementer` が迷わない粒度で UI 設計をまとめる。既存の部品と色は、コードを読んで確認する（`app/src/components/`、`app/src/styles/components/`、`app/src/styles/editorColors.ts`）。
@@ -40,6 +50,7 @@ Figma に必要なデザインがない（または変える必要がある）�
 - **UI 設計の要点**（`implementer` に渡す内容。② 設計のとき）
 - **Figma への反映が必要か**と、反映する内容（② 設計で UI 設計をまとめたとき）
 - **Figma で変更した内容**（② の反映・③ 実装・④ の指摘修正のとき。変更したノードも書く。なければ「なし」）
+- **`docs/figma.md` の更新が必要な点**（対応表と食い違ったノード、新しく作った主要ノード。なければ「なし」）
 - **UI 設計の更新点**（③ 実装のとき。Figma の修正結果が ② の UI 設計と食い違う点。差分がなければ「なし」）
 - **コードやドキュメントの更新が必要な点**（なければ「なし」）
 - **ユーザーの判断が必要な点**: CLAUDE.md の「ユーザーの判断が必要な点」に従い、報告の最後に書く

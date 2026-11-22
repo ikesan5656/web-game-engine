@@ -50,6 +50,8 @@ Issue 対応は `/issue` スキルの流れ（① 要件定義 `doc-reviewer` �
 
 UI に関わる Issue では、Figma を扱う `ui-designer` を使う。UI に関わらない Issue では起動しない。Figma の URL は、Issue の本文・コメントにあるものを渡す（なければユーザーに聞く）。② で得た URL と、② で変更したノードは ② の工程コメントに残し、③・④ でも再利用する。②③④ の工程コメントには、その工程で変更したノードを、上書きするときも消さず累積して書く。`ui-designer` は Figma ファイルを新規作成せず、渡された既存のファイルの中だけを編集する。
 
+Figma MCP は呼び出し回数に上限があるので、節約する。メインは `ui-designer`・`design-reviewer` に `docs/figma.md`（主要ノードの対応表）を読ませ、工程コメントなどの node-id を渡す。エージェントは渡されたノードとその近くだけを読み、安いツール（`get_metadata`・`get_variable_defs`）から使い、`use_figma` の編集はまとめる。この受け渡しは、起動と再確認のたびに行う。Figma のフレームを足したり変えたりしたとき、または報告に `docs/figma.md` との食い違いがあるときは、その工程の中で `doc-writer` に `docs/figma.md` を更新させ、`doc-reviewer` と `prettier --check` の対象に含める。
+
 - ② 設計: `planner` と**並行して**起動し、Figma を読んで UI 設計（画面構成・使う既存部品・色・余白・状態など）をまとめさせる。Figma に必要なデザインがない（または変える必要がある）ときは、既存のデザイン（配色・余白・既存部品）に合わせて設計させ、Figma への反映が必要かと反映する内容も報告させる。設計の要約をユーザーが了承したら、② の中で `ui-designer` を再度起動し、Figma の URL・了承された UI 設計・反映する内容を渡して、既存の Figma ファイルに反映させる（新規ファイルは作らない）。変更したノードをユーザーに示し、Figma を見て了承を取る（修正を求められたら `ui-designer` に直させて繰り返す）。この Figma を実装前に `design-reviewer` にレビューさせることはしない。Figma に必要なデザインがすでにあれば、反映の手順は行わない
 - ③ 実装: `implementer` は、② で Figma に反映したデザインを正として実装する。実装中に Figma の追加修正が要ると分かったときなど、例外的な場合だけ、`implementer`・`doc-writer` と**並行して** `ui-designer` を起動する。変更した Figma のノードは、② で変更したノードと合わせて ④ に渡す。報告に「UI 設計の更新点」があれば、ユーザーに示して `implementer` に追加で依頼する
 
@@ -79,6 +81,8 @@ UI に関わる Issue では、Figma を扱う `ui-designer` を使う。UI に�
 設計の詳しい説明、各方針の理由、移行計画は `docs/architecture.md` にある。設計に関わる変更をするときは先に読むこと。
 
 エディタの操作方法（マウス・キーの割り当て）は `docs/editor-controls.md` にある。操作やショートカットを追加・変更するとき、操作について聞かれたときに読む。変更したら `doc-writer` に更新させ、`docs/architecture.md` のエディタカメラの操作一覧も合わせる。
+
+Figma の URL、主要ノードの node-id、描画の倍率（実寸の 2 倍）は `docs/figma.md` にある。メインは、`ui-designer`・`design-reviewer` に渡す node-id を探すときに読み、エージェントにも読ませる。Figma のノードを変えたら `doc-writer` に更新させる。
 
 ### 設計方針
 
