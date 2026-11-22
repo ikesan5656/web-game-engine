@@ -60,12 +60,12 @@ Issue 対応は `/issue` スキルの流れ（① 要件定義 `doc-reviewer` �
 
 ## アーキテクチャ
 
-入口: `app/src/main.tsx` → `pages/Home` → `container/EditorCanvas`（R3F の `<Canvas>`）→ `scenesGl/SceneDev`
+入口: `app/src/main.tsx` → `pages/Home` → `container/EditorCanvas`（R3F の `<Canvas>`）→ `scenesGl/SceneDev`。`pages/Home` は Header とパネル配置（`EditorPanel`）を組み、Scene パネルに `container/EditorCanvas` を置く
 
 - `scenesGl/`: シーンの構成（現状は開発用シーンのみ）。シーンデータの描画と、エディタ側の表示（カメラ操作、ギズモ、グリッド、`TransformControls`）を組み合わせる
 - `components/webGl/`: 再利用する R3F 部品（カメラ操作、ライト、モデルなど）
 - `components/webGl/sceneView/`: シーンデータ（エンティティの配列）の描画と、ID から根の `Object3D` を引くレジストリ（`entityObjectRegistry.ts`・`EntityObjectRegistryProvider`）
-- `components/`・`styles/components/`: MUI の UI 部品
+- `components/`・`styles/components/`: MUI の UI 部品。パネルの枠（`components/EditorPanel.tsx`、配置の `styles/components/StyledEditorLayout.tsx`）もここに置く。パネルの色は定数 `styles/editorColors.ts` にまとめる
 - `redux/`: エディタの状態（選択の `selection` slice、Undo/Redo の履歴の `history` slice、ドラッグ中の一時状態の `transformEdit` slice など）とシーンデータ（`scene` slice）。編集操作のコマンドの実行・Undo・Redo は `redux/commands.ts` の thunk を通す
 - `hooks/`・`utils/`: Undo/Redo のショートカット（`hooks/useUndoRedoShortcuts.ts`）、入力欄の判定（`utils/isTextEditingElement.ts`）
 - `core/`: シーンデータの型と初期データ（`core/scene/devScene.ts`）、コマンドの型と適用・取り消し（`core/command/`）など。`three`・`react`・`redux` に依存しない純粋な TypeScript

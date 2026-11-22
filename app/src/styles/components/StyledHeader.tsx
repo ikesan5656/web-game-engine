@@ -3,6 +3,9 @@ import { styled } from "@mui/material";
 export const StyledHeader = styled("header")({
   backgroundColor: "#222",
   height: "50px",
+  flexShrink: 0,
+  position: "relative",
+  zIndex: 1,
   width: "100%",
   color: "#fff",
   padding: "0",
