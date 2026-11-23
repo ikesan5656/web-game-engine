@@ -26,6 +26,8 @@ PATTERNS=(
   "URL 内の認証情報|[a-z][a-z0-9+.-]*://[^/[:space:]:@]+:[^/[:space:]:@]{3,}@"
   "Penpot 秘密鍵|PENPOT_SECRET_KEY=[^[:space:]\$]{16,}"
   "Penpot MCP キー|userToken=[^\$&\"[:space:]]{8,}"
+  "Penpot アクセストークン|PENPOT_ACCESS_TOKEN[\"']?[[:space:]]*[:=][[:space:]]*[^[:space:]\$]{16,}"
+  "Penpot アクセストークン（ヘッダ）|Authorization:[[:space:]]*Token[[:space:]]+[^[:space:]\$\"'\`]{16,}"
 )
 # 代入形式の汎用パターン（大文字小文字を区別しない）
 # 注意: macOS の grep では [...] 内の \s が空白にならないため [:space:] を使う
