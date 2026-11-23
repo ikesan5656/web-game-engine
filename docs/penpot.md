@@ -4,7 +4,7 @@
 
 Figma の代わりに使うデザインツール Penpot を、手元の Docker で起動し、Claude Code から MCP（Model Context Protocol）で読み書きするための手順をまとめる。#23 で Figma を Penpot に置き換える土台として、#24 で用意した。
 
-- 設定のファイルは `designs/`（`docker-compose.yaml`・`.env.example`・`.gitignore`）、ルートの `.mcp.json`、`.claude/settings.json` にある
+- 設定のファイルは `designs/`（`docker-compose.yaml`・`.env.example`・`.gitignore`）、ルートの `.mcp.json`、`.claude/settings.json` にある。デザインの書き出しに関わるファイル（`designs/scripts/`・`designs/exports/`・`designs/.gitattributes`）は、「デザインの書き出しと復元」を参照
 - ローカル専用。サーバーに置いたり、ほかの人に公開したりしない
 - #23 の他のサブ Issue の追記は、「トラブルシューティング」の前に H2 を足す
 
@@ -16,6 +16,7 @@ Figma の代わりに使うデザインツール Penpot を、手元の Docker �
 - `disable-secure-session-cookies`: HTTPS でなくてもログインの cookie を使えるようにする
 - `enable-prepl-server`: 開発用の REPL サーバーを有効にする（ポートは公開しない）
 - `enable-mcp`: MCP を有効にする
+- `enable-access-tokens`: アクセストークンの発行画面を有効にする（書き出しスクリプトのアクセストークンのため。「デザインの書き出しと復元」を参照）
 
 どれも外部に公開すると危険な設定（認証の省略、cookie の保護の無効化）なので、手元以外で動かさない。そのため、公開するポートはすべて `127.0.0.1` だけで受け、同じネットワークの別の端末からは繋がらない。テレメトリは無効にしている。
 
@@ -114,7 +115,7 @@ docker compose down     # 停止（データは残る）
 手順は次のとおり。
 
 1. 「初回セットアップ」までを終え、`http://localhost:9001` にログインする
-2. アカウントの設定 → Integrations で MCP キーを発行する。キーは 1 回しか表示されず、有効期限がある。発行し直すと、古いキーはすぐ無効になる
+2. 「あなたのアカウント」→ Integrations で MCP キーを発行する。キーは 1 回しか表示されず、有効期限がある。発行し直すと、古いキーはすぐ無効になる
 3. `~/.zshrc` などに、環境変数を書く
 
    ```shell
@@ -160,6 +161,86 @@ Claude Code 上のツール名は `mcp__penpot__<名前>` になる。
 - `high_level_overview`・`penpot_api_info`: サーバー内の静的な資料を返すだけ。`penpot_api_info` では `Board.resize` の資料を取得できた。`.claude/settings.json` の allow に入れている
 - `export_shape`: シェイプ（または `page`・`selection`）を PNG か SVG に書き出し、画像として返す。PNG の取得を確認した。SVG や `page`・`selection` の指定は、公式の仕様にあるが未確認。Remote mode なので、ローカルのファイルには保存しない。自動許可しないのは現時点の決定で、#23 の別のサブ Issue で `design-reviewer` の比較に使うときに見直す
 - `import_image`: Remote mode ではファイルシステムにアクセスしないので、提供されない
+
+## デザインの書き出しと復元
+
+Penpot のデータは Docker のボリュームにあり、git には入らない。そこで、スクリプト `designs/scripts/export-penpot.mjs` で全ファイルを `.penpot` に書き出し、`designs/exports/` に置いて git で管理する（#25）。書き出しは手動で実行する。フックや CI での自動実行はしない。
+
+### アクセストークンの発行
+
+書き出しは Penpot の API を呼ぶので、アクセストークンが要る。MCP キー（「Claude Code との接続」）とは別のものを発行する。Access tokens の画面は既定では出ないので、`designs/docker-compose.yaml` の `PENPOT_FLAGS` に `enable-access-tokens` を足して有効にしている。
+
+1. `http://localhost:9001` にログインする
+2. 「あなたのアカウント」→ Integrations（MCP Server と同じ画面）の Access tokens でトークンを発行する。フラグを有効にすると、Integrations にこの項目が出ることを確認済み
+3. 期限は 90 日を選ぶ
+4. 発行時の 1 回しか表示されないので、表示されたトークンをすぐ `designs/.env` の `PENPOT_ACCESS_TOKEN` に書く
+
+トークンは会話やコードに貼らない。`.env` は git に入らず（`designs/.gitignore`）、ファイルへの書き込み時とコミット時に検査するフック `.claude/hooks/check-secrets.sh` でも検出する。検出するのは次の行（`$` を含む値（`${...}` などの参照）は対象外）。
+
+- `PENPOT_ACCESS_TOKEN` の後に `=` または `:`（前後の空白可）で 16 文字以上の値が続く行
+- `Authorization: Token <16 文字以上の値>` の行（値からは引用符とバッククォートを除く）
+
+誤検出の行は、同じ行に `secret-scan:allow` と書けば除外できる。
+
+### 有効期限の扱い
+
+- 期限は 90 日を推奨する
+- 期限が切れると、書き出しが 401（または 403）で失敗する。どちらになるかは未確認。再発行して `designs/.env` の値を書き換える
+- 不要になったトークンは、同じ画面から失効させる
+
+### 設定
+
+`designs/.env.example` の次の項目を `designs/.env` に書く。
+
+- `PENPOT_ACCESS_TOKEN`（必須）: 上で発行したアクセストークン
+- `PENPOT_BASE_URL`（任意）: Penpot の URL。省略時は `http://localhost:9001`
+
+### 書き出し
+
+Penpot を起動した状態で、`designs/` で実行する。Node 20.12 以上が必要（`process.loadEnvFile` を使うため）。
+
+```shell
+node scripts/export-penpot.mjs
+```
+
+スクリプトは Penpot の API（`POST /api/main/methods/<名前>`）を呼ぶ。API のドキュメントは `http://localhost:9001/api/main/doc` で見られる。
+
+- 全プロジェクトの全ファイル（Drafts を含む）を、`designs/exports/<プロジェクト名>/<ファイル名>.penpot` に上書きで保存する
+- ファイル名に使えない文字と、先頭の `.` は `_` にする。同じプロジェクトに同名のファイルがあれば、`-<ID の先頭 8 文字>` を付ける
+- 保存先が重なったとき（チームが複数あってそれぞれに Drafts がある、別のプロジェクトと名前が同じ、大文字と小文字だけが違う）は、ファイルに `-<ファイル ID の先頭 8 文字>`、プロジェクトのフォルダに `-<プロジェクト ID の先頭 8 文字>` を付け、両方を保存する
+- 途中で失敗したときは、それまでに書けたファイルは残り、残りは書き出されない。書き込み中の一時ファイル（`.tmp`）は消す（`designs/.gitignore` で `*.tmp` を無視している）
+- Penpot で消した、または名前を変えたファイルの古い `.penpot` は、自動では消さない。スクリプトが一覧を出すので、確かめてから `git rm` する
+
+### コミット
+
+- `.penpot` は通常の git で管理する（Git LFS は使わない）
+- zip のバイナリなので、差分は読めない（`designs/.gitattributes` で binary 指定）。変更内容は PR の説明や Penpot の画面で確かめる
+- `.penpot` の中には書き出した時刻が入るので、デザインが同じでも変更扱いになることがある。デザインを変えていないファイルはコミットしなくてよい
+- 1 ファイルが 5 MB を超えると、スクリプトが「警告: 5 MB を超えるファイルがあります。git LFS への移行を検討してください（docs/penpot.md）。」と出す。目安の 5 MB を超えたら Git LFS に移す。移すときは `designs/.gitattributes` も LFS 用に直す
+
+### 復元
+
+1. Penpot のダッシュボードで「Import」（取り込み）を選び、`designs/exports/` の `.penpot` を選んで取り込む。元と同じデザインで復元できることを確認済み
+2. 取り込むと、別のファイルとして作られる（元のファイルはそのまま残る）。中身を確かめたら、元のファイルか取り込んだ側の、一方を消す。取り込んだ側が元と同名のとき、同じプロジェクトに同名のファイルが並んだままだと、次の書き出しで `-<ID の先頭 8 文字>` 付きの名前になる
+
+### 共有ライブラリ
+
+現状の書き出しは `includeLibraries: false` で、共有ライブラリは含めない。共有ライブラリを使い始めたら、スクリプトの設定（`includeLibraries`）を変える必要がある。共有ライブラリを使うファイルは、復元後に参照が切れる可能性がある（未確認）。
+
+### 書き出しのトラブル
+
+スクリプトが出すエラーと、その対処。
+
+- 「designs/.env がありません。.env.example をコピーして作ってください。」: 「初回セットアップ」の手順で `.env` を作る
+- 「PENPOT_ACCESS_TOKEN が空です。Penpot のアカウント設定 → Integrations → Access tokens で発行し、designs/.env に書いてください。」: トークンを発行して `.env` に書く
+- 「認証に失敗しました（HTTP 401）。アクセストークンの期限切れ・失効・誤りの可能性があります。再発行して designs/.env を更新してください。」（403 のときは HTTP 403）: 再発行して `designs/.env` を直す
+- 「http://localhost:9001 に接続できません。Penpot が起動していません（designs/ で docker compose up -d）。」: Penpot を起動する。`PENPOT_BASE_URL` を変えているときは、その URL も確かめる。「起動と停止」を参照する
+- 応答を解析できないとき: 受け取った内容の先頭 200 文字を出して止まる（トークンは出さない）。URL が Penpot のものか、Penpot の版を確かめる
+- 上記以外の「… が失敗しました（HTTP n）」などのエラー: Penpot のログ（`docker compose logs`）を見る
+- 「designs/.env を読めません: <コード>」: ファイルの権限などを確かめる
+- 「書き出した内容が .penpot（zip）ではありません（<n> バイト、Content-Type: <型 または 不明>）。」: `PENPOT_BASE_URL` が Penpot を指しているか、Penpot の版を確かめる
+- 「<URL> への接続に失敗しました: TypeError: fetch failed」: `PENPOT_BASE_URL` が http と https で食い違うなどでリダイレクトされると、スクリプトはリダイレクトを拒否し、このエラーで失敗する。リダイレクトのほか、原因が特定できない接続失敗でも出る。まず `PENPOT_BASE_URL` を実際の URL に合わせられているか確かめる
+- 画面に Access tokens の項目がない: `designs/docker-compose.yaml` の `PENPOT_FLAGS` に `enable-access-tokens` があるか確かめ、`docker compose up -d` で反映する
 
 ## トラブルシューティング
 
