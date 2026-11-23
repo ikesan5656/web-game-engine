@@ -24,6 +24,8 @@ PATTERNS=(
   "Stripe シークレットキー|sk_live_[A-Za-z0-9]{20,}"
   "秘密鍵|-----BEGIN ([A-Z]+ )?PRIVATE KEY-----"
   "URL 内の認証情報|[a-z][a-z0-9+.-]*://[^/[:space:]:@]+:[^/[:space:]:@]{3,}@"
+  "Penpot 秘密鍵|PENPOT_SECRET_KEY=[^[:space:]\$]{16,}"
+  "Penpot MCP キー|userToken=[^\$&\"[:space:]]{8,}"
 )
 # 代入形式の汎用パターン（大文字小文字を区別しない）
 # 注意: macOS の grep では [...] 内の \s が空白にならないため [:space:] を使う

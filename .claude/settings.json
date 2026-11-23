@@ -27,12 +27,14 @@
       "mcp__claude_ai_Figma__get_comments",
       "mcp__claude_ai_Figma__search_design_system",
       "mcp__claude_ai_Figma__get_libraries",
-      "mcp__claude_ai_Figma__get_code_connect_map"
+      "mcp__claude_ai_Figma__get_code_connect_map",
+      "mcp__penpot__high_level_overview",
+      "mcp__penpot__penpot_api_info"
     ],
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.local)",
-      "Read(./secrets/**)",
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/secrets/**)",
       "Bash(git push --force*)",
       "Bash(git push -f*)",
       "Bash(git push * --force*)",
@@ -64,6 +66,7 @@
       }
     ]
   },
+  "enabledMcpjsonServers": ["penpot"],
   "enabledPlugins": {
     "document-skills@anthropic-plugin-directory": true
   }
